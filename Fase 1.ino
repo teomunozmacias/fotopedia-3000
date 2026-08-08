@@ -19,7 +19,7 @@ void setup() {
 
   // Escribimos en la segunda línea
   lcd.setCursor(0, 1);
-  lcd.print("Hola mundo!Detector de objetos");
+  lcd.print("Detector de objetos");
 }
 
 void loop() {
