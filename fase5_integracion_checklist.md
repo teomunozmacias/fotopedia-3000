@@ -15,15 +15,16 @@ Checklist completo para verificar que todo funciona de extremo a extremo.
 
 ### Software
 
-- [ ] Arduino IDE con librerías: `LiquidCrystal`, `WiFiS3`
-- [ ] Sketch `fase4_arduino_http_server.ino` cargado en Arduino
-- [ ] MIT App Inventor con la app instalada en el móvil
-- [ ] Clave de Google Vision API generada y guardada
+- [ ] Arduino IDE con las librerías `LiquidCrystal` y `WiFiS3`
+- [ ] Sketch `fase4_arduino_http_server.ino` cargado, con `SSID_WIFI` y `CLAVE_WIFI` puestos
+- [ ] Monitor Serie configurado a **115200 baudios**
+- [ ] App de MIT App Inventor instalada en el móvil
+- [ ] Clave de Google Vision API generada y con Cloud Vision API activada
 
 ### Red
 
-- [ ] Arduino y móvil conectados a la **misma red WiFi**
-- [ ] IP del Arduino anotada (aparece en la LCD y en Serial Monitor)
+- [ ] Arduino y móvil en la **misma red WiFi de 2,4 GHz**
+- [ ] IP del Arduino anotada (se ve en la LCD y en el Monitor Serie)
 
 ---
 
@@ -31,11 +32,19 @@ Checklist completo para verificar que todo funciona de extremo a extremo.
 
 ### Test 1: LCD muestra IP correctamente
 
-- [ ] Cargue el sketch `fase4_arduino_http_server.ino`
-- [ ] Abra Serial Monitor (115200 baud)
-- [ ] Verifique que Arduino imprime: "WiFi conectado. IP: 192.168.X.X"
-- [ ] Verifique que la LCD muestra: "IP: 192.168.X.X" (o similar) durante 3 segundos
-- [ ] Tras 3 segundos, LCD muestra: "Escuchando..." (o texto anterior si hay petición)
+- [ ] Carga el sketch `fase4_arduino_http_server.ino` (con tu SSID y clave puestos)
+- [ ] Abre el Monitor Serie a **115200 baudios**
+- [ ] El Monitor Serie imprime: `Conectado. IP: 192.168.X.X`
+- [ ] La LCD queda así, y **la IP se queda ahí de forma permanente**:
+
+```
+┌────────────────┐
+│192.168.1.50    │
+│Esperando foto  │
+└────────────────┘
+```
+
+- [ ] Anota la IP: la necesitas para todos los tests siguientes
 
 ### Test 2: Servidor HTTP responde localmente (curl desde PC)
 
@@ -45,9 +54,9 @@ curl "http://192.168.X.X/?texto=TestHola"
 ```
 
 Resultado esperado:
-- [ ] Respuesta: `HTTP 200 OK`
-- [ ] LCD muestra: "Testshola" (truncado a 16 caracteres)
-- [ ] Serial Monitor imprime: "LCD actualizada: Testshola"
+- [ ] Respuesta: `OK`
+- [ ] La LCD muestra `TestHola` en la línea de abajo (la IP sigue arriba)
+- [ ] El Monitor Serie imprime: `LCD linea 2: TestHola`
 
 ### Test 3: Decodificación de URL
 
@@ -64,23 +73,41 @@ Resultado esperado:
 ### Test 4: Truncado a 16 caracteres
 
 ```bash
-curl "http://192.168.X.X/?texto=EstaEsUnaFraseQueTieneMusDe16Caracteres"
+curl "http://192.168.X.X/?texto=EstaEsUnaFraseQueTieneMasDe16Caracteres"
 ```
 
 Resultado esperado:
-- [ ] LCD muestra solo: "EstaEsUnaFraseQu" (16 caracteres exactos)
-- [ ] El resto se corta sin error
+- [ ] La LCD muestra solo: `EstaEsUnaFraseQu` (16 caracteres exactos)
+- [ ] El resto se corta sin dar error
 
-### Test 5: Normalización de acentos
+### Test 5: Se quitan los acentos
 
 ```bash
-curl "http://192.168.X.X/?texto=Café"
-# o con URL encoding:
-curl "http://192.168.X.X/?texto=Caf%C3%A9"
+curl "http://192.168.X.X/?texto=Cafe%CC%81"     # no, este no
+curl "http://192.168.X.X/?texto=Caf%C3%A9"      # este si: %C3%A9 es la "e" con tilde
+curl "http://192.168.X.X/?texto=Ni%C3%B1o"      # %C3%B1 es la "n" con virgulilla
 ```
 
 Resultado esperado:
-- [ ] LCD muestra: "Cafe" (sin acento)
+- [ ] Primera línea de la LCD: sigue la IP
+- [ ] Segunda línea: `Cafe` y luego `Nino`, **sin símbolos raros**
+
+> Si aquí ves basura en pantalla, el problema está en `quitarAcentos()` del sketch.
+> Recuerda: una letra con tilde son **dos números** (`0xC3` + otro), no uno.
+
+### Test 6: La placa no se cuelga con una conexión vacía
+
+Este test comprueba el *timeout*. Abre una conexión y no envíes nada:
+
+```bash
+# Deja este comando abierto 5 segundos y luego cortalo con Ctrl+C
+telnet 192.168.X.X 80
+```
+
+Resultado esperado:
+- [ ] El Monitor Serie dice: `Peticion vacia (se agoto el tiempo de espera).`
+- [ ] **La placa sigue respondiendo**: repite el Test 2 y debe funcionar
+- [ ] Si la placa se queda muerta, el timeout no está funcionando
 
 ---
 
@@ -96,14 +123,27 @@ Resultado esperado:
 ### Test 2: Vision reconoce la foto
 
 - [ ] La app envía la foto a Google Vision
-- [ ] Espera respuesta (15-30 segundos típicamente)
-- [ ] Verifica que aparece una etiqueta: ej. "Cat", "Toy", "Plant"
-- [ ] Si no aparece nada: comprobar que la clave de API es correcta
+- [ ] Espera la respuesta (**1–3 segundos** normalmente)
+- [ ] Aparece un nombre de objeto: `Cat`, `Chair`, `Bottle`, `Teddy bear`…
+- [ ] Si no aparece nada: comprueba que la clave de API es correcta y que
+      **Cloud Vision API** está activada en Google Cloud
 
-### Test 3: Etiqueta se muestra en app
+### Test 3: Comprobar que NO salen etiquetas abstractas
 
-- [ ] Verifica que el campo "Detectado: ..." muestra la etiqueta
-- [ ] Ejemplos esperados: "Cat", "Dog", "Toy", "Plant", "Food", etc.
+Este test verifica que `OBJECT_LOCALIZATION` está bien configurado.
+
+- [ ] Haz una foto a un peluche o a un cojín (cosas con tela)
+- [ ] El resultado debe ser un objeto (`Teddy bear`, `Pillow`), **no** `Textile`,
+      `Font` ni `Material property`
+- [ ] Si sale una de esas palabras abstractas, la app sigue pidiendo
+      `LABEL_DETECTION`: revisa el `PostData` del componente `Web1`
+
+### Test 4: Vision no reconoce nada
+
+- [ ] Haz una foto a una pared lisa o al techo
+- [ ] `OBJECT_LOCALIZATION` devolverá la lista **vacía**
+- [ ] La app debe mostrar `No he reconocido nada` y **no cerrarse**
+- [ ] Si la app se cierra, falta la comprobación de "lista vacía" del paso 3.3
 
 ---
 
@@ -120,13 +160,13 @@ Resultado esperado:
 1. [ ] Toma una foto con el móvil
 2. [ ] Vision identifica objeto (espera a que aparezca la etiqueta)
 3. [ ] Presiona "Enviar a Arduino"
-4. [ ] Verifica en Serial Monitor: "Cliente conectado", "Parámetro recibido: ..."
-5. [ ] **Verifica que la LCD de Arduino muestra la etiqueta detectada**
+4. [ ] En el Monitor Serie aparece: `--- Cliente conectado ---`, `Texto recibido: ...`
+5. [ ] **La LCD del Arduino muestra el nombre del objeto**
 
 **Resultado esperado:**
-- App: "✓ Enviado a Arduino"
-- Arduino Serial: etiqueta impresa
-- Arduino LCD: muestra etiqueta en línea 2
+- App: `✓ Enviado a Arduino`
+- Monitor Serie: el nombre impreso
+- LCD: IP arriba, nombre del objeto abajo
 
 ### Test 2: Múltiples objetos
 
@@ -140,28 +180,26 @@ Repite Test 1 con diferentes objetos:
 
 **Tabla de resultados:**
 
-| Objeto | Etiqueta Vision | En LCD | ¿Correcto? |
+| Objeto | Nombre de Vision | En LCD | ¿Correcto? |
 |---|---|---|---|
 | ... | ... | ... | ☐ |
 | ... | ... | ... | ☐ |
 | ... | ... | ... | ☐ |
 
-### Test 3: Casos límite — Texto largo
+### Test 3: Casos límite — Nombre largo
 
-Toma foto de algo que Vision etiquete con **texto largo** (ej. "Furniture", "Electronic Device", "Clothing"):
+Busca un objeto cuyo nombre pase de 16 letras (`Chest of drawers` = 16, `Home appliance`, `Musical instrument`):
 
-- [ ] Etiqueta en app: ej. "Electronic Device"
-- [ ] LCD: trunca a 16 caracteres → "Electronic Devic"
-- [ ] Sin errores ni caracteres raros
-- [ ] Serial Monitor no muestra fallos
+- [ ] En la app se ve el nombre completo: ej. `Musical instrument`
+- [ ] En la LCD se corta a 16: `Musical instrum`
+- [ ] No salen caracteres raros ni se apaga la pantalla
 
-### Test 4: Casos límite — Acentos
+### Test 4: Casos límite — Nombres con espacio
 
-Si usas idioma español y tomas foto de algo con nombre acentuado (ej. "Sofá", "Lámpara"):
+Vision devuelve muchos nombres de dos palabras (`Teddy bear`, `Coffee cup`, `Mobile phone`):
 
-- [ ] Vision devuelve: "Sofa", "Lampara" (sin acentos, en inglés típicamente)
-- [ ] LCD muestra correctamente
-- [ ] Sin caracteres corruptos
+- [ ] La LCD muestra las **dos palabras**, no solo la primera
+- [ ] Si solo ves la primera palabra, falta el `Web1.UriEncode` en la app
 
 ### Test 5: Latencia (tiempo total)
 
@@ -190,35 +228,35 @@ Mide el tiempo desde que tomas la foto hasta que aparece en la LCD:
 
 ## Fase 5.4: Robustez y errores
 
-### Test 1: Conexión WiFi se pierde
+### Test 1: Se pierde la conexión WiFi
 
-- [ ] App y Arduino conectados
-- [ ] Apaga WiFi del router (o desconecta Arduino)
-- [ ] Espera 30 segundos
-- [ ] Reactiva WiFi
-- [ ] Verifica que todo sigue funcionando
+El sketch comprueba la WiFi cada 5 segundos y se reconecta solo.
 
-### Test 2: Vision no reconoce
+- [ ] Arduino funcionando y mostrando la IP
+- [ ] Apaga el WiFi del router (o aléjate mucho con la placa)
+- [ ] En menos de ~10 segundos, la LCD muestra `Recuperando WiFi`
+- [ ] El Monitor Serie imprime: `Se ha perdido la WiFi. Reconectando...`
+- [ ] Vuelve a encender el router
+- [ ] La placa se reconecta sola y **vuelve a mostrar la IP**
+- [ ] Repite el Test 2 de la fase 5.1: debe responder igual que antes
 
-Toma una foto de algo abstracto (luz, pared blanca, cielo):
+> ⚠️ Al reconectar, el router **puede darle una IP distinta**.
+> Mira siempre la pantalla antes de dar por hecho que es la misma.
 
-- [ ] Vision devuelve etiqueta genérica o vacía
-- [ ] App no crashea
-- [ ] Puedes volver a intentar
+### Test 2: IP incorrecta en la app
 
-### Test 3: IP incorrecta
+- [ ] Escribe una IP que no existe: `192.168.1.240`
+- [ ] Haz una foto y pulsa "Enviar a Arduino"
+- [ ] La app muestra un error o se queda esperando, pero **no se cierra**
+- [ ] Vuelve a poner la IP buena y comprueba que funciona otra vez
 
-- [ ] Escribe IP incorrecta en la app: ej. "192.168.1.999"
-- [ ] Toma foto y envía a Arduino
-- [ ] App debe mostrar timeout o error (no debe crashear)
+### Test 3: Se apaga el Arduino
 
-### Test 4: Arduino cae
-
-- [ ] App enviando peticiones normalmente
-- [ ] Apaga Arduino (desenchufa)
-- [ ] App debe mostrar error de conexión
-- [ ] Enciende Arduino de nuevo
-- [ ] Debe volver a funcionar
+- [ ] Con todo funcionando, desenchufa el Arduino
+- [ ] Envía desde la app: debe salir un error de conexión
+- [ ] Enchufa el Arduino y espera a que muestre la IP
+- [ ] **Comprueba que la IP es la misma que antes** (a veces cambia)
+- [ ] Envía otra vez: debe funcionar
 
 ---
 
@@ -226,9 +264,12 @@ Toma una foto de algo abstracto (luz, pared blanca, cielo):
 
 ### Test 1: Documentar flujo con screenshots
 
-- [ ] Foto de la LCD mostrando "IP: 192.168.X.X"
-- [ ] Foto de la LCD con objeto detectado ("Cat", "Toy", etc.)
-- [ ] Screenshot de la app mostrando la foto y la etiqueta
+- [ ] Foto de la LCD mostrando la IP al arrancar
+- [ ] Foto de la LCD con un objeto detectado (`Cat`, `Teddy bear`…)
+- [ ] Captura de la app con la foto y el nombre reconocido
+
+> ⚠️ Antes de subir las fotos: comprueba que **no se vea tu IP pública ni la clave
+> de la API** en ninguna captura. La IP local (`192.168.x.x`) no pasa nada.
 
 ### Test 2: Video de demostración (opcional)
 
@@ -251,20 +292,20 @@ Actualizar README con:
 
 ### ❌ Arduino no se conecta a WiFi
 
-**Síntomas:** Serial dice "ERROR: No se pudo conectar a WiFi"
+**Síntomas:** el Monitor Serie dice `No se ha podido conectar a la WiFi.` y la LCD muestra `ERROR WiFi`
 
-**Checklist:**
-- [ ] SSID y contraseña correctos en el sketch
-- [ ] Red WiFi es 2.4 GHz (Arduino R4 soporta 2.4 GHz, no 5 GHz)
-- [ ] Router está encendido
-- [ ] Otro dispositivo puede conectarse a esa red
+**Comprobaciones:**
+- [ ] `SSID_WIFI` y `CLAVE_WIFI` bien escritos en el sketch (ojo a mayúsculas)
+- [ ] La red es de **2,4 GHz** — el Uno R4 WiFi **no funciona en 5 GHz**
+- [ ] El router está encendido y otro aparato se conecta bien a esa red
+- [ ] El nombre de la red no lleva acentos ni caracteres raros
 
 **Solución:**
-1. Verifica SSID y contraseña en `fase4_arduino_http_server.ino`
-2. Recompila y carga
-3. Abre Serial Monitor
-4. Apaga WiFi del router, espera 5 seg, enciende
-5. Arduino debe conectarse
+1. Revisa `SSID_WIFI` y `CLAVE_WIFI` en `fase4_arduino_http_server.ino`
+2. Vuelve a subir el sketch
+3. Abre el Monitor Serie **a 115200 baudios** (si pones otra velocidad, verás símbolos raros)
+4. Si tu router emite 2,4 y 5 GHz con el mismo nombre, entra en su configuración
+   y sepáralos temporalmente para asegurarte de que la placa usa la de 2,4
 
 ---
 
@@ -278,10 +319,12 @@ Actualizar README con:
 - [ ] Móvil tiene conexión a Internet (no es red local)
 
 **Solución:**
-1. Abre Google Cloud Console
-2. Verifica que Cloud Vision API está enabled
-3. Copia la clave correcta
-4. Hardcodea en la app temporalmente para probar
+1. Abre Google Cloud Console y comprueba que **Cloud Vision API** está activada
+2. Comprueba que la **facturación** está activada (Google la exige aunque no pagues nada)
+3. Prueba la misma clave desde el ordenador con la página de la Fase 3: si ahí tampoco
+   funciona, el problema es la clave, no la app
+4. Mira el bloque `Web1.GotText`: el `responseCode` te dice qué pasa
+   (`403` = clave mal o API sin activar, `400` = el JSON está mal formado)
 
 ---
 
@@ -303,48 +346,68 @@ Actualizar README con:
 
 ### ❌ LCD muestra caracteres raros
 
-**Síntomas:** LCD parpadea o muestra caracteres ininteligibles
+**Síntomas:** la LCD parpadea o muestra símbolos sin sentido
 
-**Checklist:**
-- [ ] Cables LCD bien conectados (revisar esquema)
-- [ ] Potenciómetro bien ajustado (girar para cambiar contraste)
-- [ ] Alimentación estable (5V sin caídas)
+Hay **dos causas distintas** y conviene distinguirlas:
+
+**Causa A — problema eléctrico** (símbolos raros en *toda* la pantalla, o cuadros negros)
+- [ ] Cables bien conectados (revisa el esquema de la Fase 1)
+- [ ] Potenciómetro ajustado (gíralo despacio hasta que se lea bien)
+- [ ] Alimentación estable de 5 V
+
+**Causa B — problema de texto** (el resto se lee bien, pero un nombre concreto sale mal)
+- [ ] Es una letra con tilde o `ñ` que no se ha convertido
+- [ ] Mira el Monitor Serie: si ahí se ve bien pero en la LCD no, es la pantalla
+- [ ] Si en el Monitor Serie ya sale mal, el fallo está en `quitarAcentos()` del sketch
+
+---
+
+### ❌ La placa deja de responder y hay que reiniciarla
+
+**Síntomas:** funcionaba, y de pronto no contesta a nada (ni a `curl` ni a la app)
+
+**Comprobaciones:**
+- [ ] ¿El Monitor Serie sigue imprimiendo algo? Si está mudo, la placa está colgada
+- [ ] ¿Ha entrado alguna conexión rara justo antes? (otro aparato de la red, un escáner)
 
 **Solución:**
-1. Ajusta potenciómetro lentamente hasta que se lea bien
-2. Revisa conexión de cables
-3. Prueba sin WiFi (apagar WiFi de Arduino) para ver si hay interferencia
+El sketch tiene un *timeout* de 2 segundos (`TIMEOUT_PETICION_MS`) precisamente para
+esto. Si aun así se cuelga, ejecuta el **Test 6 de la fase 5.1** para comprobar que el
+timeout funciona.
 
 ---
 
 ## Checklist final
 
-- [ ] Arduino conecta a WiFi
-- [ ] Arduino muestra IP en LCD
-- [ ] Servidor HTTP responde localmente
-- [ ] App toma fotos
-- [ ] App reconoce con Vision
-- [ ] App envía texto a Arduino
-- [ ] LCD muestra texto de Arduino
-- [ ] Funciona con múltiples objetos
-- [ ] Texto se trunca correctamente
-- [ ] Acentos se normalizan
-- [ ] Latencia es aceptable (~3-8 seg)
-- [ ] Errores se manejan sin crashear
-- [ ] Documentado con fotos/video
+- [ ] El Arduino se conecta a la WiFi
+- [ ] La IP se ve en la LCD y se queda ahí
+- [ ] El servidor responde a `curl` desde el ordenador
+- [ ] Aguanta una conexión vacía sin colgarse (timeout)
+- [ ] La app hace fotos
+- [ ] Vision reconoce objetos de verdad (no `Font` ni `Material property`)
+- [ ] La app envía el nombre al Arduino
+- [ ] La LCD muestra el nombre
+- [ ] Funciona con varios objetos distintos
+- [ ] Los nombres largos se cortan a 16 sin romper nada
+- [ ] Los nombres de dos palabras llegan enteros
+- [ ] Los acentos se quitan bien
+- [ ] Si se cae la WiFi, la placa se reconecta sola
+- [ ] Si Vision no reconoce nada, la app no se cierra
+- [ ] Tiempo total aceptable (3–8 segundos)
+- [ ] Documentado con fotos o vídeo
 
 ---
 
 ## ✅ Proyecto completado
 
-Si todo funciona, ¡felicidades! Haces:
+Si todo esto funciona, ¡felicidades! Habéis construido:
 
-1. ✓ Foto con móvil
-2. ✓ IA reconoce objeto
-3. ✓ Nombre aparece en LCD
+1. ✓ Una foto hecha con el móvil
+2. ✓ Una IA que reconoce lo que hay en la foto
+3. ✓ Un aparato propio que lo escribe en una pantalla
 
 **Mejoras futuras:**
-- Sincronizar con Arduino Cloud (Fase 6)
-- Histórico de detecciones
-- Traducción a otros idiomas
-- Interfaz para cambiar opciones de Vision (LABEL_DETECTION vs OBJECT_LOCALIZATION)
+- Guardar un histórico de los objetos detectados
+- Enviar también el `score` (el porcentaje de confianza) y mostrarlo
+- Botón en la app para elegir entre `OBJECT_LOCALIZATION` y `LABEL_DETECTION`
+- Añadir Arduino IoT Cloud como camino alternativo (opcional, ver README)

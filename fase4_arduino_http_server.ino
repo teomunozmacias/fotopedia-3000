@@ -2,53 +2,102 @@
   Fotopedia 3000 - Fase 4
   Servidor HTTP local en Arduino Uno R4 WiFi
 
-  Funcionamiento:
-  1. Se conecta a tu red WiFi local
-  2. Levanta un servidor en puerto 80
-  3. Espera peticiones GET: http://<ip>/?texto=nombreObjeto
-  4. Parsea la URL, decodifica caracteres especiales
-  5. Trunca a 16 caracteres y elimina acentos (LCD no los soporta)
-  6. Muestra en la LCD
+  Que hace este programa:
+  1. Se conecta a la red WiFi de casa.
+  2. Ensena su direccion IP en la pantalla LCD (linea de arriba).
+  3. Se queda escuchando peticiones en el puerto 80.
+  4. Cuando llega http://<ip>/?texto=Cat, saca "Cat" en la linea de abajo.
 
-  Configuración:
-  - Cambiar SSID y PASSWORD con tus datos
-  - Los pines de la LCD son los mismos que en Fase 1
+  Como probarlo sin el movil, desde el ordenador:
+     curl "http://192.168.1.50/?texto=Hola+Mundo"
+
+  IMPORTANTE: pon aqui abajo el nombre y la clave de tu WiFi,
+  pero NO subas este archivo a GitHub con la clave de verdad escrita.
 */
 
 #include <WiFiS3.h>
 #include <LiquidCrystal.h>
 
-// ===== CONFIGURACIÓN =====
-const char* ssid = "TU_RED_WIFI";           // Cambiar a tu SSID
-const char* password = "TU_CONTRASEÑA";     // Cambiar a tu contraseña
-const int PUERTO = 80;
+// ===== CONFIGURACION =====
+const char* SSID_WIFI  = "TU_RED_WIFI";       // Nombre de tu red WiFi
+const char* CLAVE_WIFI = "TU_CONTRASENA";     // Clave de tu red WiFi
+const int   PUERTO     = 80;
 
-// Pines LCD: RS, E, D4, D5, D6, D7 (mismo que Fase 1)
+// Cuanto esperamos como maximo a que el movil nos mande la peticion (2 segundos).
+// Sin esto, si alguien abre una conexion y no dice nada, la placa se quedaria
+// esperando para siempre y habria que reiniciarla.
+const unsigned long TIMEOUT_PETICION_MS = 2000;
+
+// Pines de la LCD: RS, E, D4, D5, D6, D7 (los mismos que en la Fase 1)
 LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 
 WiFiServer server(PUERTO);
-IPAddress ipLocal;
 
-// Buffer para el texto actual en la LCD
-char textoActual[17] = "Esperando...";  // Max 16 chars + null terminator
+// Lo que hay escrito ahora mismo en cada linea de la pantalla.
+// 16 letras + 1 hueco final que marca donde acaba el texto.
+char lineaArriba[17] = "Arrancando...   ";
+char lineaAbajo[17]  = "                ";
 
-// ===== FUNCIÓN: Decodificar URL =====
-// Convierte %20 → espacio, + → espacio, etc.
-String decodificarURL(String texto) {
+// ---------------------------------------------------------------------------
+// PANTALLA
+// ---------------------------------------------------------------------------
+
+// Copia un texto a una de las lineas, cortando a 16 letras
+// y rellenando con espacios si sobra sitio.
+void guardarLinea(char* destino, const String& texto) {
+  for (int i = 0; i < 16; i++) {
+    destino[i] = (i < (int)texto.length()) ? texto[i] : ' ';
+  }
+  destino[16] = '\0';
+}
+
+// Vuelve a dibujar las dos lineas.
+// Usamos lcd.begin() en vez de lcd.clear() porque begin() reenvia toda la
+// configuracion a la pantalla: asi se arreglan los caracteres corruptos que
+// a veces provoca el WiFi al meter ruido en los cables (lo vimos en la Fase 2).
+void refrescarPantalla() {
+  lcd.begin(16, 2);
+  lcd.setCursor(0, 0);
+  lcd.print(lineaArriba);
+  lcd.setCursor(0, 1);
+  lcd.print(lineaAbajo);
+}
+
+void escribirArriba(const String& texto) {
+  guardarLinea(lineaArriba, texto);
+  refrescarPantalla();
+}
+
+void escribirAbajo(const String& texto) {
+  guardarLinea(lineaAbajo, texto);
+  refrescarPantalla();
+}
+
+// ---------------------------------------------------------------------------
+// TEXTO: decodificar la URL y quitar acentos
+// ---------------------------------------------------------------------------
+
+// En una direccion web no se pueden poner espacios ni acentos tal cual,
+// asi que el movil los manda "disfrazados":
+//    espacio -> "+"  o  "%20"
+//    e con tilde -> "%C3%A9"
+// Esta funcion les quita el disfraz.
+String decodificarURL(const String& texto) {
   String resultado = "";
-  for (int i = 0; i < texto.length(); i++) {
+  for (unsigned int i = 0; i < texto.length(); i++) {
     char c = texto[i];
     if (c == '+') {
       resultado += ' ';
     } else if (c == '%' && i + 2 < texto.length()) {
-      // Convertir %XX a carácter
-      char hex[3];
-      hex[0] = texto[i + 1];
-      hex[1] = texto[i + 2];
-      hex[2] = '\0';
-      int code = strtol(hex, NULL, 16);
-      resultado += (char)code;
-      i += 2;
+      char hex[3] = { texto[i + 1], texto[i + 2], '\0' };
+      char* sobra;
+      long codigo = strtol(hex, &sobra, 16);
+      if (*sobra == '\0') {          // los dos caracteres eran hexadecimal valido
+        resultado += (char)codigo;
+        i += 2;
+      } else {
+        resultado += c;              // era un "%" suelto, lo dejamos tal cual
+      }
     } else {
       resultado += c;
     }
@@ -56,219 +105,264 @@ String decodificarURL(String texto) {
   return resultado;
 }
 
-// ===== FUNCIÓN: Eliminar acentos =====
-// La LCD HD44780 no soporta acentos ni ñ
-String normalizarTexto(String texto) {
+// La pantalla HD44780 no tiene letras con tilde ni la "n" con virgulilla.
+//
+// Ojo a un detalle importante: en el ordenador una "a con tilde" NO ocupa
+// una letra, ocupa DOS numeros seguidos (se llama UTF-8). La "a" con tilde
+// es la pareja 0xC3 0xA1, y la "n" con virgulilla es 0xC3 0xB1.
+// Por eso aqui miramos los numeros de dos en dos: si vemos un 0xC3,
+// leemos el siguiente para saber que letra era y la cambiamos por su
+// version sin tilde.
+String quitarAcentos(const String& texto) {
   String resultado = "";
-  for (int i = 0; i < texto.length(); i++) {
-    char c = texto[i];
-    // Tabla simplificada de acentos comunes
-    if (c == 'á' || c == 'à' || c == 'ä' || c == 'â') resultado += 'a';
-    else if (c == 'é' || c == 'è' || c == 'ë' || c == 'ê') resultado += 'e';
-    else if (c == 'í' || c == 'ì' || c == 'ï' || c == 'î') resultado += 'i';
-    else if (c == 'ó' || c == 'ò' || c == 'ö' || c == 'ô') resultado += 'o';
-    else if (c == 'ú' || c == 'ù' || c == 'ü' || c == 'û') resultado += 'u';
-    else if (c == 'ñ') resultado += 'n';
-    else if (c == 'ç') resultado += 'c';
-    // Mayúsculas
-    else if (c == 'Á' || c == 'À' || c == 'Ä' || c == 'Â') resultado += 'A';
-    else if (c == 'É' || c == 'È' || c == 'Ë' || c == 'Ê') resultado += 'E';
-    else if (c == 'Í' || c == 'Ì' || c == 'Ï' || c == 'Î') resultado += 'I';
-    else if (c == 'Ó' || c == 'Ò' || c == 'Ö' || c == 'Ô') resultado += 'O';
-    else if (c == 'Ú' || c == 'Ù' || c == 'Ü' || c == 'Û') resultado += 'U';
-    else if (c == 'Ñ') resultado += 'N';
-    else if (c == 'Ç') resultado += 'C';
-    else resultado += c;
+  for (unsigned int i = 0; i < texto.length(); i++) {
+    byte b = (byte)texto[i];
+
+    if (b == 0xC3 && i + 1 < texto.length()) {
+      byte segundo = (byte)texto[i + 1];
+      i++;  // esta pareja ya la hemos gastado entera
+
+      if      (segundo >= 0xA0 && segundo <= 0xA5) resultado += 'a';  // a a a a a a
+      else if (segundo == 0xA7)                    resultado += 'c';  // c cedilla
+      else if (segundo >= 0xA8 && segundo <= 0xAB) resultado += 'e';  // e e e e
+      else if (segundo >= 0xAC && segundo <= 0xAF) resultado += 'i';  // i i i i
+      else if (segundo == 0xB1)                    resultado += 'n';  // n virgulilla
+      else if (segundo >= 0xB2 && segundo <= 0xB6) resultado += 'o';  // o o o o o
+      else if (segundo >= 0xB9 && segundo <= 0xBC) resultado += 'u';  // u u u u
+      else if (segundo >= 0x80 && segundo <= 0x85) resultado += 'A';
+      else if (segundo == 0x87)                    resultado += 'C';
+      else if (segundo >= 0x88 && segundo <= 0x8B) resultado += 'E';
+      else if (segundo >= 0x8C && segundo <= 0x8F) resultado += 'I';
+      else if (segundo == 0x91)                    resultado += 'N';
+      else if (segundo >= 0x92 && segundo <= 0x96) resultado += 'O';
+      else if (segundo >= 0x99 && segundo <= 0x9C) resultado += 'U';
+      // Cualquier otra pareja rara la ignoramos.
+
+    } else if (b == 0xC2 && i + 1 < texto.length()) {
+      i++;  // simbolos tipo "!" invertido o grados: los saltamos
+
+    } else if (b >= 32 && b < 127) {
+      resultado += (char)b;  // letra, numero o signo normal: pasa tal cual
+    }
+    // Lo que no sea imprimible se descarta, para que la pantalla no saque basura.
   }
   return resultado;
 }
 
-// ===== FUNCIÓN: Truncar a 16 caracteres =====
-String truncarALCD(String texto) {
-  if (texto.length() > 16) {
-    return texto.substring(0, 16);
-  }
-  return texto;
-}
+// Deja el texto listo para la pantalla y lo escribe en la linea de abajo.
+void mostrarObjeto(const String& textoBruto) {
+  String limpio = quitarAcentos(textoBruto);
 
-// ===== FUNCIÓN: Mostrar en LCD =====
-void mostrarEnLCD(String texto) {
-  // Normalizar y truncar
-  texto = normalizarTexto(texto);
-  texto = truncarALCD(texto);
-
-  // Copiar a buffer
-  texto.toCharArray(textoActual, 17);
-
-  // Mostrar: usar begin() en lugar de clear() para evitar corrupción por WiFi
-  lcd.begin(16, 2);
-  lcd.setCursor(0, 0);
-  lcd.print("Fotopedia 3000");
-
-  lcd.setCursor(0, 1);
-  lcd.print(textoActual);
-
-  // Rellenar con espacios si es más corto que 16 caracteres
-  int espacios = 16 - strlen(textoActual);
-  for (int i = 0; i < espacios; i++) {
-    lcd.print(" ");
+  if (limpio.length() > 16) {
+    limpio = limpio.substring(0, 16);   // solo caben 16 letras por linea
   }
 
-  // Debug por Serial
-  Serial.print("LCD actualizada: ");
-  Serial.println(textoActual);
+  escribirAbajo(limpio);
+
+  Serial.print("LCD linea 2: ");
+  Serial.println(limpio);
 }
 
-// ===== SETUP =====
-void setup() {
-  Serial.begin(9600);
-  delay(2000);  // Esperar a que se estabilice la placa
+// ---------------------------------------------------------------------------
+// WIFI
+// ---------------------------------------------------------------------------
 
-  Serial.println("\n\nFotopedia 3000 - Servidor HTTP");
-  Serial.println("================================");
+// Intenta conectarse a la WiFi. Devuelve true si lo consigue.
+bool conectarWiFi() {
+  Serial.print("Conectando a la WiFi: ");
+  Serial.println(SSID_WIFI);
 
-  // Inicializar LCD
-  lcd.begin(16, 2);
-  lcd.setCursor(0, 0);
-  lcd.print("Fotopedia 3000");
-  lcd.setCursor(0, 1);
-  lcd.print("Conectando WiFi.");
+  WiFi.begin(SSID_WIFI, CLAVE_WIFI);
 
-  // Conectar a WiFi
-  Serial.print("Conectando a WiFi: ");
-  Serial.println(ssid);
-  WiFi.begin(ssid, password);
+  for (int intentos = 0; intentos < 20; intentos++) {
+    if (WiFi.status() == WL_CONNECTED) {
+      IPAddress ip = WiFi.localIP();
 
-  int intentos = 0;
-  while (WiFi.status() != WL_CONNECTED && intentos < 20) {
+      Serial.print("Conectado. IP: ");
+      Serial.println(ip);
+
+      // La IP se queda fija arriba: es la direccion que hay que escribir
+      // en la app. Puede cambiar si reinicias el router.
+      escribirArriba(ip.toString());
+      return true;
+    }
     delay(500);
     Serial.print(".");
-    lcd.print(".");
-    intentos++;
   }
 
   Serial.println();
-
-  if (WiFi.status() == WL_CONNECTED) {
-    ipLocal = WiFi.localIP();
-
-    Serial.print("WiFi conectado. IP: ");
-    Serial.println(ipLocal);
-
-    // Mostrar IP en LCD
-    lcd.begin(16, 2);
-    lcd.setCursor(0, 0);
-    lcd.print("IP:");
-    lcd.setCursor(3, 0);
-    lcd.print(ipLocal);
-
-    lcd.setCursor(0, 1);
-    lcd.print("Escuchando...");
-
-    // Iniciar servidor
-    server.begin();
-    Serial.println("Servidor HTTP iniciado en puerto 80");
-  } else {
-    Serial.println("ERROR: No se pudo conectar a WiFi");
-    lcd.begin(16, 2);
-    lcd.setCursor(0, 0);
-    lcd.print("ERROR WiFi");
-    while (true) {
-      delay(1000);  // Bloquear si hay error
-    }
-  }
-
-  delay(3000);  // Mostrar IP durante 3 segundos
+  Serial.println("No se ha podido conectar a la WiFi.");
+  return false;
 }
 
-// ===== LOOP =====
-void loop() {
-  // Comprobar si hay cliente conectado
-  WiFiClient client = server.available();
+// ---------------------------------------------------------------------------
+// SERVIDOR HTTP
+// ---------------------------------------------------------------------------
 
-  if (client) {
-    Serial.println("Cliente conectado");
-
-    String requestLine = "";
-    String parametroTexto = "";
-    boolean finalizarLectura = false;
-
-    // Leer la petición HTTP
-    while (client.connected()) {
-      if (client.available()) {
-        char c = client.read();
-        requestLine += c;
-
-        // Detectar fin de línea de petición
-        if (c == '\n') {
-          if (finalizarLectura) {
-            break;  // Fin de los headers
-          }
-          if (requestLine.endsWith("\r\n")) {
-            // Procesar la línea de petición
-            if (requestLine.startsWith("GET")) {
-              // Formato esperado: GET /?texto=nombreObjeto HTTP/1.1
-              int posicionPregunta = requestLine.indexOf('?');
-              int posicionEspacio = requestLine.indexOf(' ', posicionPregunta);
-
-              if (posicionPregunta > 0 && posicionEspacio > posicionPregunta) {
-                String parametros = requestLine.substring(posicionPregunta + 1, posicionEspacio);
-
-                // Buscar parámetro "texto="
-                int posTexto = parametros.indexOf("texto=");
-                if (posTexto >= 0) {
-                  parametroTexto = parametros.substring(posTexto + 6);
-                  // Detener en & o espacio si hay más parámetros
-                  int posAmpersand = parametroTexto.indexOf('&');
-                  if (posAmpersand > 0) {
-                    parametroTexto = parametroTexto.substring(0, posAmpersand);
-                  }
-                }
-              }
-            }
-            finalizarLectura = true;
-          }
-          requestLine = "";
-        }
-      }
-    }
-
-    // Si recibimos un parámetro "texto", actualizar LCD
-    if (parametroTexto.length() > 0) {
-      parametroTexto = decodificarURL(parametroTexto);
-      Serial.print("Parámetro recibido: ");
-      Serial.println(parametroTexto);
-
-      mostrarEnLCD(parametroTexto);
-
-      // Responder con OK
-      client.println("HTTP/1.1 200 OK");
-      client.println("Content-Type: text/plain");
-      client.println("Connection: close");
-      client.println();
-      client.println("OK");
-    } else {
-      // Responder con error
-      client.println("HTTP/1.1 400 Bad Request");
-      client.println("Content-Type: text/plain");
-      client.println("Connection: close");
-      client.println();
-      client.println("Error: falta parámetro 'texto'");
-    }
-
-    // Cerrar conexión
-    delay(1);
-    client.stop();
-    Serial.println("Cliente desconectado");
+// Saca el valor del parametro "texto" de una direccion como  /?texto=Cat
+// Si no lo encuentra, devuelve "".
+String extraerParametroTexto(const String& ruta) {
+  int inicioConsulta = ruta.indexOf('?');
+  if (inicioConsulta < 0) {
+    return "";
   }
 
-  // Cada 10 segundos sin cliente, mostrar la IP actual (para referencia)
-  static unsigned long ultimoMuestreoIP = 0;
-  unsigned long ahora = millis();
-  if (ahora - ultimoMuestreoIP > 30000) {
-    ultimoMuestreoIP = ahora;
-    Serial.print("Servidor activo en: http://");
-    Serial.print(ipLocal);
-    Serial.println("/");
+  String consulta = ruta.substring(inicioConsulta + 1);
+
+  // La consulta puede traer varios parametros separados por "&":
+  //    ?texto=Cat&otro=3
+  int desde = 0;
+  while (desde <= (int)consulta.length()) {
+    int siguiente = consulta.indexOf('&', desde);
+    if (siguiente < 0) siguiente = consulta.length();
+
+    String pareja = consulta.substring(desde, siguiente);
+    if (pareja.startsWith("texto=")) {
+      return pareja.substring(6);
+    }
+
+    desde = siguiente + 1;
+  }
+
+  return "";
+}
+
+// Lee la primera linea de la peticion (la que trae la direccion),
+// sin quedarse colgado si el cliente no manda nada.
+String leerPrimeraLinea(WiFiClient& client) {
+  String linea = "";
+  unsigned long inicio = millis();
+
+  while (millis() - inicio < TIMEOUT_PETICION_MS) {
+    if (client.available()) {
+      char c = client.read();
+      if (c == '\n') break;
+      if (c != '\r') linea += c;
+      if (linea.length() > 250) break;   // proteccion: la placa tiene poca memoria
+    } else if (!client.connected()) {
+      break;
+    }
+  }
+
+  return linea;
+}
+
+void responder(WiFiClient& client, const char* estado, const String& cuerpo) {
+  client.print("HTTP/1.1 ");
+  client.println(estado);
+  client.println("Content-Type: text/plain; charset=utf-8");
+  client.println("Connection: close");
+  client.println();
+  client.println(cuerpo);
+}
+
+void atenderCliente(WiFiClient& client) {
+  String primeraLinea = leerPrimeraLinea(client);
+
+  if (primeraLinea.length() == 0) {
+    Serial.println("Peticion vacia (se agoto el tiempo de espera).");
+    return;
+  }
+
+  Serial.print("Peticion: ");
+  Serial.println(primeraLinea);
+
+  // Nos tragamos el resto de la peticion para que el movil no vea un corte feo.
+  unsigned long inicio = millis();
+  while (client.available() && millis() - inicio < 100) {
+    client.read();
+  }
+
+  // Formato de la primera linea:  GET /?texto=Cat HTTP/1.1
+  int primerEspacio  = primeraLinea.indexOf(' ');
+  int segundoEspacio = primeraLinea.indexOf(' ', primerEspacio + 1);
+
+  if (primerEspacio < 0 || segundoEspacio < 0) {
+    responder(client, "400 Bad Request", "No entiendo la peticion");
+    return;
+  }
+
+  String ruta = primeraLinea.substring(primerEspacio + 1, segundoEspacio);
+
+  // Los navegadores piden el iconito de la pestana; no nos interesa.
+  if (ruta.startsWith("/favicon.ico")) {
+    responder(client, "404 Not Found", "");
+    return;
+  }
+
+  String parametro = extraerParametroTexto(ruta);
+
+  if (parametro.length() == 0) {
+    responder(client, "400 Bad Request",
+              "Falta el parametro 'texto'. Prueba con /?texto=Hola");
+    return;
+  }
+
+  String textoRecibido = decodificarURL(parametro);
+  Serial.print("Texto recibido: ");
+  Serial.println(textoRecibido);
+
+  mostrarObjeto(textoRecibido);
+
+  responder(client, "200 OK", "OK");
+}
+
+// ---------------------------------------------------------------------------
+// SETUP Y LOOP
+// ---------------------------------------------------------------------------
+
+void setup() {
+  Serial.begin(115200);
+  delay(2000);   // damos tiempo a que el Monitor Serie se abra
+
+  Serial.println();
+  Serial.println("Fotopedia 3000 - Servidor HTTP");
+  Serial.println("==============================");
+
+  lcd.begin(16, 2);
+  escribirArriba("Fotopedia 3000");
+  escribirAbajo("Buscando WiFi...");
+
+  if (!conectarWiFi()) {
+    escribirArriba("ERROR WiFi");
+    escribirAbajo("Revisa la clave");
+    while (true) {
+      delay(1000);   // aqui nos quedamos: sin WiFi no hay nada que hacer
+    }
+  }
+
+  escribirAbajo("Esperando foto");
+
+  server.begin();
+  Serial.print("Servidor listo en http://");
+  Serial.print(WiFi.localIP());
+  Serial.println("/");
+}
+
+void loop() {
+  // 1) Atender al movil si nos esta llamando
+  WiFiClient client = server.available();
+  if (client) {
+    Serial.println("--- Cliente conectado ---");
+    atenderCliente(client);
+    delay(1);          // margen para que salgan los ultimos bytes
+    client.stop();
+    Serial.println("--- Cliente desconectado ---");
+  }
+
+  // 2) Vigilar la WiFi: si se cae, volver a conectarse
+  static unsigned long ultimaRevision = 0;
+  if (millis() - ultimaRevision > 5000) {
+    ultimaRevision = millis();
+
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("Se ha perdido la WiFi. Reconectando...");
+      escribirArriba("Recuperando WiFi");
+
+      if (conectarWiFi()) {
+        server.begin();          // el servidor necesita volver a arrancar
+        Serial.println("Servidor de nuevo en marcha.");
+      }
+    }
   }
 }
