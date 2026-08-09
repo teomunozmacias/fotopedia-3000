@@ -266,7 +266,16 @@ Y luego decidir así:
 
 #### Qué hacemos en este proyecto
 
-Empezamos por la **Opción B** (`OBJECT_LOCALIZATION`), porque para fotos de objetos de casa acierta mucho más y no hay que mantener ninguna lista. Si vemos que se queda en blanco a menudo, pasamos a la **Opción C**.
+**Opción B: `OBJECT_LOCALIZATION`.** ✅ *Comprobado con fotos nuestras.*
+
+No es una decisión sobre el papel: lo probamos con la página de la Fase 3, comparando las
+dos formas con las mismas fotos, y `OBJECT_LOCALIZATION` acierta claramente más con
+objetos de casa. Además nos ahorra tener que mantener a mano la lista de palabras
+abstractas.
+
+Si algún día vemos que se queda en blanco demasiado a menudo (pasa con paisajes o
+superficies lisas), pasaremos a la **Opción C**, que ya está preparada en la página de
+prueba.
 
 ---
 
