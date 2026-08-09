@@ -28,14 +28,17 @@ Checklist completo para verificar que todo funciona de extremo a extremo.
 
 ---
 
-## Fase 5.1: Prueba de hardware (Arduino solo)
+## Fase 5.1: Prueba de hardware (Arduino solo) ✅ SUPERADA
 
-### Test 1: LCD muestra IP correctamente
+> Probada con éxito. La placa se conecta, muestra su IP y responde bien a todas
+> las pruebas desde el ordenador.
 
-- [ ] Carga el sketch `fase4_arduino_http_server.ino` (con tu SSID y clave puestos)
-- [ ] Abre el Monitor Serie a **115200 baudios**
-- [ ] El Monitor Serie imprime: `Conectado. IP: 192.168.X.X`
-- [ ] La LCD queda así, y **la IP se queda ahí de forma permanente**:
+### Test 1: LCD muestra IP correctamente ✅
+
+- [x] Carga el sketch `fase4_arduino_http_server.ino` (con tu SSID y clave puestos)
+- [x] Abre el Monitor Serie a **115200 baudios**
+- [x] El Monitor Serie imprime: `Listo. IP: 192.168.X.X`
+- [x] La LCD queda así, y **la IP se queda ahí de forma permanente**:
 
 ```
 ┌────────────────┐
@@ -44,9 +47,12 @@ Checklist completo para verificar que todo funciona de extremo a extremo.
 └────────────────┘
 ```
 
-- [ ] Anota la IP: la necesitas para todos los tests siguientes
+- [x] Anota la IP: la necesitas para todos los tests siguientes
 
-### Test 2: Servidor HTTP responde localmente (curl desde PC)
+> ⚠️ Si aquí sale `0.0.0.0`, mira el apartado de resolución de problemas del final.
+> Nos pasó: la placa entra en la red antes de que el router le dé una dirección.
+
+### Test 2: Servidor HTTP responde localmente (curl desde PC) ✅
 
 ```bash
 # En una terminal (PC o Mac) en la misma red:
@@ -54,11 +60,11 @@ curl "http://192.168.X.X/?texto=TestHola"
 ```
 
 Resultado esperado:
-- [ ] Respuesta: `OK`
-- [ ] La LCD muestra `TestHola` en la línea de abajo (la IP sigue arriba)
-- [ ] El Monitor Serie imprime: `LCD linea 2: TestHola`
+- [x] Respuesta: `OK`
+- [x] La LCD muestra `TestHola` en la línea de abajo (la IP sigue arriba)
+- [x] El Monitor Serie imprime: `LCD linea 2: TestHola`
 
-### Test 3: Decodificación de URL
+### Test 3: Decodificación de URL ✅
 
 ```bash
 # Probar espacio codificado
@@ -68,34 +74,33 @@ curl "http://192.168.X.X/?texto=Hola+Mundo"
 ```
 
 Resultado esperado:
-- [ ] LCD muestra: "Hola Mundo"
+- [x] LCD muestra: "Hola Mundo"
 
-### Test 4: Truncado a 16 caracteres
+### Test 4: Truncado a 16 caracteres ✅
 
 ```bash
 curl "http://192.168.X.X/?texto=EstaEsUnaFraseQueTieneMasDe16Caracteres"
 ```
 
 Resultado esperado:
-- [ ] La LCD muestra solo: `EstaEsUnaFraseQu` (16 caracteres exactos)
-- [ ] El resto se corta sin dar error
+- [x] La LCD muestra solo: `EstaEsUnaFraseQu` (16 caracteres exactos)
+- [x] El resto se corta sin dar error
 
-### Test 5: Se quitan los acentos
+### Test 5: Se quitan los acentos ✅
 
 ```bash
-curl "http://192.168.X.X/?texto=Cafe%CC%81"     # no, este no
-curl "http://192.168.X.X/?texto=Caf%C3%A9"      # este si: %C3%A9 es la "e" con tilde
+curl "http://192.168.X.X/?texto=Caf%C3%A9"      # %C3%A9 es la "e" con tilde
 curl "http://192.168.X.X/?texto=Ni%C3%B1o"      # %C3%B1 es la "n" con virgulilla
 ```
 
 Resultado esperado:
-- [ ] Primera línea de la LCD: sigue la IP
-- [ ] Segunda línea: `Cafe` y luego `Nino`, **sin símbolos raros**
+- [x] Primera línea de la LCD: sigue la IP
+- [x] Segunda línea: `Cafe` y luego `Nino`, **sin símbolos raros**
 
 > Si aquí ves basura en pantalla, el problema está en `quitarAcentos()` del sketch.
 > Recuerda: una letra con tilde son **dos números** (`0xC3` + otro), no uno.
 
-### Test 6: La placa no se cuelga con una conexión vacía
+### Test 6: La placa no se cuelga con una conexión vacía ✅
 
 Este test comprueba el *timeout*. Abre una conexión y no envíes nada:
 
@@ -105,9 +110,9 @@ telnet 192.168.X.X 80
 ```
 
 Resultado esperado:
-- [ ] El Monitor Serie dice: `Peticion vacia (se agoto el tiempo de espera).`
-- [ ] **La placa sigue respondiendo**: repite el Test 2 y debe funcionar
-- [ ] Si la placa se queda muerta, el timeout no está funcionando
+- [x] El Monitor Serie dice: `Peticion vacia (se agoto el tiempo de espera).`
+- [x] **La placa sigue respondiendo**: repite el Test 2 y debe funcionar
+- [x] Si la placa se queda muerta, el timeout no está funcionando
 
 ---
 

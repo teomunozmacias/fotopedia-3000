@@ -309,6 +309,13 @@ La mayoría de módulos 1602A que se venden sueltos son **A00**, y por eso quita
 
 ## Fase 4 — App en MIT App Inventor + Servidor HTTP (en desarrollo)
 
+Esta fase tiene dos mitades:
+
+| Mitad | Estado |
+|---|---|
+| **Servidor HTTP en el Arduino** | ✅ Hecho y probado |
+| **App en MIT App Inventor** | ⏳ En construcción |
+
 ### Componentes del Arduino
 
 El Arduino corre un servidor web local que:
