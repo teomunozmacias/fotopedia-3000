@@ -309,6 +309,40 @@ Actualizar README con:
 
 ---
 
+### ❌ La LCD muestra la IP `0.0.0.0`
+
+**Síntomas:** la placa dice que está conectada, pero la dirección que aparece es `0.0.0.0`
+
+Esto significa: **la placa ha entrado en la red, pero el router todavía no le ha dado
+una dirección**. Son dos pasos distintos:
+
+```
+1. Entrar en la red WiFi   →  WiFi.status() == WL_CONNECTED
+2. Recibir una dirección   →  WiFi.localIP() deja de ser 0.0.0.0   ← este falta
+```
+
+Es como entrar en un hotel: primero cruzas la puerta, y **después** en recepción te dan
+el número de habitación. Si preguntas el número nada más entrar, todavía no lo tienen.
+Ese reparto de direcciones se llama **DHCP**.
+
+**Comprobaciones:**
+- [ ] ¿La IP aparece bien pasados unos segundos? Entonces solo era falta de paciencia
+- [ ] ¿Se queda en `0.0.0.0` para siempre? Entonces el router no está repartiendo IPs
+- [ ] ¿El router tiene un límite de aparatos conectados o filtro por MAC?
+- [ ] ¿Hay algún modo "invitados" o "aislamiento de dispositivos" activado?
+
+**Solución:**
+1. El sketch ya **espera hasta 10 segundos** a que llegue la IP (`ESPERA_DHCP_MS`).
+   Si tu router es lento, sube ese número
+2. Si tras esos 10 segundos sigue sin IP, la LCD muestra `Sin IP: router?` y el
+   Monitor Serie lo explica
+3. Reinicia el router y vuelve a probar
+4. Comprueba en la configuración del router que el **DHCP está activado**
+5. Si nada funciona, actualiza el **firmware del módulo WiFi** de la placa:
+   Arduino IDE → *Herramientas* → *Firmware Updater*
+
+---
+
 ### ❌ App no recibe respuesta de Vision
 
 **Síntomas:** App muestra "Foto capturada, enviando a Vision..." pero no continúa

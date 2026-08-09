@@ -28,6 +28,12 @@ const int   PUERTO     = 80;
 // esperando para siempre y habria que reiniciarla.
 const unsigned long TIMEOUT_PETICION_MS = 2000;
 
+// Cuanto esperamos como maximo a que el router nos preste una direccion IP.
+const unsigned long ESPERA_DHCP_MS = 10000;
+
+// "Direccion vacia": es lo que devuelve la placa cuando todavia no tiene IP.
+const IPAddress IP_SIN_ASIGNAR(0, 0, 0, 0);
+
 // Pines de la LCD: RS, E, D4, D5, D6, D7 (los mismos que en la Fase 1)
 LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 
@@ -167,32 +173,71 @@ void mostrarObjeto(const String& textoBruto) {
 // WIFI
 // ---------------------------------------------------------------------------
 
-// Intenta conectarse a la WiFi. Devuelve true si lo consigue.
+// Si algo falla, aqui dejamos escrito que fue, para poder avisar en la pantalla.
+String ultimoErrorWiFi = "";
+
+// Intenta conectarse a la WiFi y conseguir una direccion IP.
+// Devuelve true solo si consigue las dos cosas.
 bool conectarWiFi() {
   Serial.print("Conectando a la WiFi: ");
   Serial.println(SSID_WIFI);
 
   WiFi.begin(SSID_WIFI, CLAVE_WIFI);
 
-  for (int intentos = 0; intentos < 20; intentos++) {
-    if (WiFi.status() == WL_CONNECTED) {
-      IPAddress ip = WiFi.localIP();
-
-      Serial.print("Conectado. IP: ");
-      Serial.println(ip);
-
-      // La IP se queda fija arriba: es la direccion que hay que escribir
-      // en la app. Puede cambiar si reinicias el router.
-      escribirArriba(ip.toString());
-      return true;
-    }
+  // --- Paso 1: entrar en la red ---
+  for (int intentos = 0; intentos < 20 && WiFi.status() != WL_CONNECTED; intentos++) {
     delay(500);
     Serial.print(".");
   }
-
   Serial.println();
-  Serial.println("No se ha podido conectar a la WiFi.");
-  return false;
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("No se ha podido entrar en la red WiFi.");
+    Serial.println("Revisa el nombre de la red y la clave.");
+    ultimoErrorWiFi = "Clave o red mal";
+    return false;
+  }
+
+  // --- Paso 2: esperar a que el router nos preste una IP ---
+  //
+  // MUY IMPORTANTE: estar "conectado" NO quiere decir que ya tengamos direccion.
+  // Son dos cosas distintas y pasan una detras de otra:
+  //
+  //   1. La placa entra en la red     -> WiFi.status() == WL_CONNECTED
+  //   2. El router le presta una IP   -> WiFi.localIP() deja de ser 0.0.0.0
+  //
+  // Es como entrar en un hotel: primero cruzas la puerta, y despues, en
+  // recepcion, te dan el numero de habitacion. Si preguntamos el numero nada
+  // mas cruzar la puerta, todavia no lo tienen y nos dicen "0.0.0.0".
+  //
+  // Ese reparto de direcciones se llama DHCP y tarda un poco, asi que hay que
+  // esperar a que termine.
+  Serial.print("Dentro de la red. Esperando la IP del router");
+
+  IPAddress ip = WiFi.localIP();
+  unsigned long inicio = millis();
+
+  while (ip == IP_SIN_ASIGNAR && millis() - inicio < ESPERA_DHCP_MS) {
+    delay(250);
+    Serial.print(".");
+    ip = WiFi.localIP();
+  }
+  Serial.println();
+
+  if (ip == IP_SIN_ASIGNAR) {
+    Serial.println("El router no nos ha dado ninguna IP (fallo de DHCP).");
+    ultimoErrorWiFi = "Sin IP: router?";
+    return false;
+  }
+
+  Serial.print("Listo. IP: ");
+  Serial.println(ip);
+
+  // La IP se queda fija arriba: es la direccion que hay que escribir
+  // en la app. Puede cambiar si reinicias el router.
+  escribirArriba(ip.toString());
+  ultimoErrorWiFi = "";
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -324,10 +369,11 @@ void setup() {
   escribirAbajo("Buscando WiFi...");
 
   if (!conectarWiFi()) {
-    escribirArriba("ERROR WiFi");
-    escribirAbajo("Revisa la clave");
+    escribirArriba("ERROR de red");
+    escribirAbajo(ultimoErrorWiFi);
+    Serial.println("Mira la pantalla y el mensaje de arriba para saber que falla.");
     while (true) {
-      delay(1000);   // aqui nos quedamos: sin WiFi no hay nada que hacer
+      delay(1000);   // aqui nos quedamos: sin IP no podemos hacer nada
     }
   }
 
@@ -355,9 +401,11 @@ void loop() {
   if (millis() - ultimaRevision > 5000) {
     ultimaRevision = millis();
 
-    if (WiFi.status() != WL_CONNECTED) {
-      Serial.println("Se ha perdido la WiFi. Reconectando...");
-      escribirArriba("Recuperando WiFi");
+    // Damos por perdida la conexion si nos hemos salido de la red
+    // O si nos hemos quedado sin direccion IP (las dos cosas importan).
+    if (WiFi.status() != WL_CONNECTED || WiFi.localIP() == IP_SIN_ASIGNAR) {
+      Serial.println("Se ha perdido la conexion. Reconectando...");
+      escribirArriba("Recuperando red");
 
       if (conectarWiFi()) {
         server.begin();          // el servidor necesita volver a arrancar

@@ -346,6 +346,22 @@ La placa no tiene una dirección fija de fábrica: se la da el router al encende
 
 Esa es la dirección que hay que escribir en la app. También sale por el **Monitor Serie** (a 115200 baudios).
 
+#### Conectarse y tener IP son dos cosas distintas
+
+Al arrancar, la placa da **dos pasos seguidos**, y es fácil confundirlos:
+
+| Paso | Qué pasa | Cómo se comprueba |
+|---|---|---|
+| 1️⃣ Entrar en la red | La placa dice la clave y el router la deja pasar | `WiFi.status() == WL_CONNECTED` |
+| 2️⃣ Recibir una dirección | El router le presta un número (una IP) | `WiFi.localIP()` deja de ser `0.0.0.0` |
+
+Es como entrar en un hotel: primero cruzas la puerta, y **después**, en recepción, te dan
+el número de habitación. Ese reparto de direcciones se llama **DHCP** y tarda un poquito.
+
+> 💡 Este fue otro error real que tuvimos: el programa preguntaba la IP justo después del
+> paso 1, cuando el router todavía no la había dado, y la pantalla mostraba **`0.0.0.0`**.
+> La solución es esperar a que la dirección deje de estar vacía antes de enseñarla.
+
 **Cuidado**: la IP puede cambiar si reinicias el router o si la placa está mucho rato apagada. Si un día la app deja de funcionar, lo primero es **mirar la pantalla** por si la IP es otra.
 
 **Cómo evitar que cambie** (opcional, no hace falta para que funcione):
