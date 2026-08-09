@@ -36,8 +36,8 @@ El sistema funciona así:
 ## Plan de trabajo
 
 - [x] **Fase 1 – Hardware**: conectar la LCD 1602 al Arduino Uno R4 WiFi y mostrar un mensaje de prueba.
-- [ ] **Fase 2 – Arduino Cloud**: crear la "Thing", la variable de texto, y el sketch que sincroniza y actualiza la LCD automáticamente.
-- [ ] **Fase 3 – Google Vision API**: crear cuenta/clave y probar que identifica correctamente una foto.
+- [x] **Fase 2 – Arduino Cloud**: crear la "Thing", la variable de texto, y el sketch que sincroniza y actualiza la LCD automáticamente.
+- [x] **Fase 3 – Google Vision API**: crear cuenta/clave y probar que identifica correctamente una foto.
 - [ ] **Fase 4 – App en MIT App Inventor**: cámara + llamada a Vision + llamada a Arduino Cloud para actualizar la variable.
 - [ ] **Fase 5 – Integración final**: probarlo todo junto de extremo a extremo.
 
@@ -77,4 +77,81 @@ Ver [`fase1_test_lcd.ino`](./fase1_test_lcd.ino). Usa la librería `LiquidCrysta
 
 ## Próximos pasos
 
-Dar de alta la placa en Arduino IoT Cloud y crear la variable de texto que la Fase 2 usará para actualizar la pantalla de forma remota.
+Montar la app en MIT App Inventor (Fase 4): cámara + llamada a Google Vision + llamada a la API de Arduino Cloud para actualizar la variable `objetoDetectado`.
+
+## Fase 2 — Arduino Cloud (completada)
+
+### Configuración en Arduino Cloud
+
+- Dispositivo: Arduino Uno R4 WiFi dado de alta en [Arduino Cloud](https://cloud.arduino.cc)
+- Thing creada, con la placa y la red WiFi asociadas
+- Variable de nube: `objetoDetectado`, tipo **String**, permisos **Read & Write**, sincronización **On change**
+
+### Código
+
+Ver [`fase2_sketch_cloud.ino`](./fase2_sketch_cloud.ino). Usa la librería `ArduinoIoTCloud` (junto con `thingProperties.h`, generado automáticamente por Arduino Cloud) para sincronizar la variable, y `LiquidCrystal` para mostrarla en la LCD.
+
+**Notas de la implementación:**
+- La escritura en la LCD no se hace directamente dentro de `onObjetoDetectadoChange()`, sino que esa función solo activa una bandera (`hayActualizacionPendiente`); la escritura real ocurre en el `loop()`, después de `ArduinoCloud.update()`. Esto evita conflictos de tiempo con la actividad del WiFi.
+- Se usa `lcd.begin(16, 2)` en vez de `lcd.clear()` para refrescar la pantalla: `begin()` reenvía toda la configuración interna de la LCD, no solo borra el contenido, lo que evita caracteres corruptos causados por interferencia del WiFi sobre los cables de datos.
+
+## Fase 3 — Google Cloud Vision API (completada)
+
+### Configuración en Google Cloud
+
+- Proyecto creado en [Google Cloud Console](https://console.cloud.google.com)
+- **Cloud Vision API** habilitada para el proyecto
+- Clave de API generada y restringida únicamente a Cloud Vision API
+- **Facturación activada** en el proyecto (requisito de Google para usar la API, aunque el uso se mantenga dentro del nivel gratuito de 1000 imágenes/mes). Se recomienda configurar una alerta de presupuesto.
+- ⚠️ La clave de API no se sube al repositorio en texto plano.
+
+### Cómo se probó
+
+Página de prueba local ([`test_google_vision.html`](./test_google_vision.html)): permite subir una foto desde el navegador, la convierte a Base64, y llama a la API con el tipo de análisis `LABEL_DETECTION` (máximo 5 etiquetas).
+
+Endpoint usado:
+```
+POST https://vision.googleapis.com/v1/images:annotate?key=TU_CLAVE_DE_API
+```
+
+Cuerpo de la petición:
+```json
+{
+  "requests": [{
+    "image": { "content": "<foto en Base64>" },
+    "features": [{ "type": "LABEL_DETECTION", "maxResults": 5 }]
+  }]
+}
+```
+
+### Formato de la respuesta
+
+La API devuelve un JSON con esta forma:
+
+```json
+{
+  "responses": [
+    {
+      "labelAnnotations": [
+        {
+          "mid": "/m/0jbk",
+          "description": "Animal",
+          "score": 0.98,
+          "topicality": 0.98
+        },
+        {
+          "mid": "/m/01yrx",
+          "description": "Cat",
+          "score": 0.95,
+          "topicality": 0.95
+        }
+      ]
+    }
+  ]
+}
+```
+
+- `responses[0].labelAnnotations` es una lista ordenada de mayor a menor confianza.
+- Cada etiqueta trae `description` (el nombre en inglés, ej. "Cat"), `score` (confianza entre 0 y 1, ej. 0.95 = 95%) y `mid` (un ID interno de Google, no lo necesitamos para este proyecto).
+- Para la app, el dato que nos interesa es `responses[0].labelAnnotations[0].description`: la etiqueta con más confianza, la primera de la lista.
+- Si la foto no tiene nada reconocible, `labelAnnotations` puede venir vacío o no existir — hay que comprobarlo antes de leerlo (así lo hace `test_google_vision.html`).
