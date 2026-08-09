@@ -423,7 +423,9 @@ La app hace esto:
 
 1. **Cámara**: permite capturar una foto
 2. **Reducir la imagen** a ~640 px de ancho, para que se envíe rápido
-3. **Convertir a Base64**: App Inventor **no sabe hacerlo de serie**, hace falta una extensión
+3. **Convertir a Base64**: App Inventor **no sabe hacerlo de serie**. Usamos la extensión
+   [`KIO4_Base64`](https://kio4.com/appinventor/277_extension_imagen_string.htm) de
+   Juan A. Villalpando — ojo, devuelve Base64 *Web Safe* y hay que traducirlo
 4. **Llamar a Google Vision API**:
    - `POST https://vision.googleapis.com/v1/images:annotate?key=TU_CLAVE_API`
    - Tipo: `OBJECT_LOCALIZATION` (ver [por qué](#️-problema-la-primera-etiqueta-suele-ser-abstracta))

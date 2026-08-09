@@ -174,8 +174,8 @@ App Inventor **no sabe hacer de serie** dos de esas cosas:
 
 | Lo que hace falta | ¿Viene incluido? | Solución |
 |---|---|---|
-| Convertir la foto a **Base64** | ❌ No | Instalar una extensión |
-| **Reducir** el tamaño de la foto | ❌ No | Truco del Canvas, o extensión |
+| Convertir la foto a **Base64** | ❌ No | Extensión `KIO4_Base64` (apartado 2.2) |
+| **Reducir** el tamaño de la foto | ❌ No | Truco del `Canvas` (apartado 2.6) |
 
 > 📌 **Corrección**: una versión anterior de este documento decía que bastaba con bajar la
 > propiedad `Quality` del componente `Camera`. **Eso no es cierto**: el componente
@@ -192,21 +192,75 @@ En la página de la Fase 3 podéis verlo: al arrastrar una foto os dice cuánto 
 
 ## 2.2 Instalar la extensión de Base64
 
-1. En la pestaña **Designer**, panel **Palette** de la izquierda, baja del todo:
+Usamos **`com.KIO4_Base64.aix`**, de Juan A. Villalpando. Está explicada aquí:
+
+🔗 <https://kio4.com/appinventor/277_extension_imagen_string.htm>
+
+1. Descarga el fichero `com.KIO4_Base64.aix` desde esa página
+2. En la pestaña **Designer**, panel **Palette** de la izquierda, baja del todo:
    **Extension → Import extension → From my computer**
-2. Necesitas un fichero `.aix`. Búscalo en la
-   [comunidad de App Inventor](https://community.appinventor.mit.edu) con
-   *"base64 extension"* o *"file extension"*
-3. Arrástralo a la pantalla: aparecerá abajo como componente **no visible**
+3. Elige el `.aix` descargado
+4. Arrástralo a la pantalla: aparecerá abajo como componente **no visible**,
+   llamado `KIO4_Base64`
 
 > ⚠️ Las extensiones `.aix` las hace gente de la comunidad, **no el MIT**.
-> Descárgalas solo del foro oficial y no de sitios raros.
+> Esta es de un autor conocido y de confianza en el mundillo de App Inventor,
+> pero como norma general no te bajes `.aix` de sitios raros.
 
-> 🔍 **Los nombres de los bloques cambian según la extensión que instales.**
-> Busca uno que diga algo como `Base64Encode`, `EncodeFile` o `FileToBase64`.
-> Ajusta los bloques de abajo al nombre que veas en tu editor.
+### Bloques que ofrece
 
-## 2.3 Componentes nuevos
+| Bloque | Para qué sirve |
+|---|---|
+| `FileToString` | Lee un fichero y lo convierte a Base64 (Android 9 o menos) |
+| `FileToStringASD` | Igual, pero en la carpeta privada de la app (Android 10 o más) |
+| `FileToStringDirect` | Lee la ruta que le des tal cual |
+| `StringToFile` | Al revés: de Base64 a fichero |
+
+## 2.3 ⚠️ El detalle que te ahorrará una tarde entera
+
+**Esta extensión no devuelve Base64 normal, devuelve Base64 "Web Safe".**
+
+Son casi iguales, pero cambian tres caracteres:
+
+| Base64 normal | Base64 Web Safe |
+|---|---|
+| `+` | `-` |
+| `/` | `_` |
+| `=` | `*` |
+
+El Web Safe se inventó precisamente para poder meter datos dentro de direcciones web
+sin que se rompan. Pero **Google Vision espera el normal**. Si le mandas el otro,
+responde `400` y no dice por qué.
+
+### Cómo comprobarlo tú mismo
+
+Toda foto JPEG empieza por los mismos caracteres. Pon el resultado en una etiqueta y
+mira las primeras letras:
+
+```
+/9j/4AAQSkZJRg...   ← Base64 normal      ✅ este quiere Google
+_9j_4AAQSkZJRg...   ← Base64 Web Safe    ❌ hay que convertirlo
+```
+
+Si ves barras `/` al principio, ya está bien. Si ves guiones bajos `_`, hay que traducirlo.
+
+### Cómo arreglarlo
+
+Se deshace el cambio con tres bloques `replace all text`, uno por cada carácter:
+
+```
+to ArreglarBase64  (textoWebSafe)
+result  replace all text
+            replace all text
+                replace all text  (get textoWebSafe)  segment "-"  replacement "+"
+            segment "_"  replacement "/"
+        segment "*"  replacement "="
+```
+
+Se leen **de dentro hacia fuera**: primero cambia los `-`, luego los `_`, y por último
+los `*`. Como pelar una cebolla al revés.
+
+## 2.4 Componentes nuevos
 
 Añade a lo que ya tenías:
 
@@ -217,7 +271,7 @@ Añade a lo que ya tenías:
 | User Interface | Image | `ImgFoto` | Para ver la foto |
 | Drawing and Animation | Canvas | `Canvas1` | Width: `640`, Height: `480` |
 | Connectivity | **Web** | `Web2` | ⚠️ **Otro Web distinto**, para Google |
-| *(el que instalaste)* | Base64 | `Base64` | |
+| Extension | KIO4_Base64 | `KIO4_Base64` | El que acabas de instalar |
 
 > ⚠️ **Dos componentes Web, y esto importa.** `Web1` habla con el Arduino y `Web2` habla
 > con Google. Si usas el mismo para las dos cosas, las respuestas se mezclan en el mismo
@@ -226,7 +280,7 @@ Añade a lo que ya tenías:
 Pon el `Canvas1` con **Visible = false** cuando todo funcione: solo lo usamos para
 encoger la foto, no hace falta verlo.
 
-## 2.4 Variables
+## 2.5 Variables
 
 En **Blocks**, apartado **Variables**, crea estas tres:
 
@@ -236,7 +290,7 @@ initialize global base64Foto    to ""
 initialize global nombreObjeto  to ""
 ```
 
-## 2.5 Hacer la foto
+## 2.6 Hacer la foto
 
 ```
 when BtnFoto.Click
@@ -246,21 +300,45 @@ do  call Camera1.TakePicture
 
 ```
 when Camera1.AfterPicture (image)
-do  set global rutaFoto to image
-    set ImgFoto.Picture to image
+do  set ImgFoto.Picture to image
 
-    // Encogerla usando el Canvas
+    // 1. Encogerla a 640 px usando el Canvas
     set Canvas1.BackgroundImage to image
     set global rutaFoto to call Canvas1.SaveAs  fileName "pequena.jpg"
 
-    // Convertirla a Base64  (ajusta el nombre del bloque a tu extension)
-    set global base64Foto to call Base64.EncodeFile  path (get global rutaFoto)
+    // 2. Convertirla a Base64 (sale en Web Safe)
+    set global base64Foto to
+        call KIO4_Base64.FileToStringDirect  fileName (get global rutaFoto)
+
+    // 3. Traducirlo a Base64 normal, que es el que quiere Google
+    set global base64Foto to call ArreglarBase64  textoWebSafe (get global base64Foto)
 
     set LblEstado.Text to "Preguntando a la IA..."
     call AnalizarConVision
 ```
 
-## 2.6 Llamar a Google Vision
+> 🔍 **Comprueba el paso 3 la primera vez.** Pon temporalmente
+> `set LblEstado.Text to segment text (get global base64Foto) start 1 length 10`
+> y mira lo que sale: debe empezar por `/9j/4AAQ`. Si empieza por `_9j_4AAQ`,
+> el bloque `ArreglarBase64` no se está aplicando.
+
+### Si `FileToStringDirect` no encuentra el fichero
+
+Depende de la versión de Android dónde guarda las cosas App Inventor:
+
+| Android | Dónde acaba la foto | Bloque a usar |
+|---|---|---|
+| 10 o más nuevo | Carpeta privada de la app (ASD) | `FileToStringASD` |
+| 9 o más viejo | `/mnt/sdcard/...` | `FileToString` |
+| Cualquiera | La ruta que le des tal cual | `FileToStringDirect` |
+
+Empieza por `FileToStringDirect`, que usa la ruta que devuelve `Canvas1.SaveAs`.
+Si te da error de fichero no encontrado, prueba `FileToStringASD`.
+
+Para ver qué ruta está saliendo de verdad:
+`set LblEstado.Text to get global rutaFoto`
+
+## 2.7 Llamar a Google Vision
 
 Crea un **procedimiento** (apartado **Procedures → to procedure do**) y llámalo
 `AnalizarConVision`:
@@ -289,7 +367,7 @@ do  set Web2.Url to join
 `Teddy bear`) en vez de etiquetas abstractas (`Font`, `Material property`).
 Lo comprobamos con nuestras propias fotos en la Fase 3; está explicado en el README.
 
-## 2.7 Leer la respuesta de Google
+## 2.8 Leer la respuesta de Google
 
 Aquí está la parte más delicada. La respuesta viene así:
 
@@ -338,7 +416,7 @@ do  if  responseCode ≠ 200
 > lisa o al cielo, Vision no encuentra ningún objeto y devuelve la lista vacía. Si lees
 > el primer elemento de una lista vacía, **la app se cierra de golpe**.
 
-## 2.8 Reutilizar el envío de la etapa 1
+## 2.9 Reutilizar el envío de la etapa 1
 
 Convierte el bloque del botón de la etapa 1 en un procedimiento, para poder llamarlo
 también desde aquí:
@@ -365,7 +443,7 @@ do  set global nombreObjeto to TxtPalabra.Text
 
 ---
 
-## 2.9 Dónde va la clave de API
+## 2.10 Dónde va la clave de API
 
 En este proyecto la clave va **escrita dentro de la app**, porque es la única forma
 sencilla sin montar un servidor. Hay que asumir lo que eso significa:
@@ -393,8 +471,12 @@ el problema es de la clave y no de la app.
 
 ### `Error de Google: 400`
 
-El JSON va mal formado. Casi siempre es que `base64Foto` está vacío, o que en el texto
-del `PostText` falta una comilla o una llave.
+Tres causas posibles, por orden de probabilidad:
+
+1. **El Base64 sigue siendo Web Safe.** Mira las primeras letras: si empiezan por
+   `_9j_` en vez de `/9j/`, falta el `ArreglarBase64` (apartado 2.3)
+2. `base64Foto` está vacío, porque la extensión no encontró el fichero
+3. En el texto del `PostText` falta una comilla o una llave
 
 ### Google responde bien pero la LCD no cambia
 
@@ -408,7 +490,7 @@ Falta el `Web1.UriEncode`.
 ### Sale algo abstracto tipo `Textile`
 
 La app está pidiendo `LABEL_DETECTION` en vez de `OBJECT_LOCALIZATION`. Revisa el texto
-del `PostText` del apartado 2.6.
+del `PostText` del apartado 2.7.
 
 ---
 

@@ -173,7 +173,23 @@ Si el paso 3 funciona pero el móvil no, el problema es del móvil o del router,
 - [ ] Se abre la cámara y haces una foto a un objeto
 - [ ] La foto aparece en la app
 
-### Test 2: Vision reconoce la foto
+### Test 2: La foto se convierte a Base64 del tipo correcto
+
+La extensión `KIO4_Base64` devuelve Base64 **Web Safe**, y Google quiere el normal.
+
+Pon temporalmente en un `Label` las 10 primeras letras de `base64Foto`:
+
+```
+set LblEstado.Text to segment  text (get global base64Foto)  start 1  length 10
+```
+
+- [ ] Sale `/9j/4AAQSk` (con barras) → **correcto**, sigue adelante
+- [ ] Sale `_9j_4AAQSk` (con guiones bajos) → falta aplicar `ArreglarBase64`
+- [ ] Sale vacío → la extensión no encontró el fichero: prueba `FileToStringASD`
+
+> Todas las fotos JPEG empiezan igual, por eso este truco funciona siempre.
+
+### Test 3: Vision reconoce la foto
 
 - [ ] La app envía la foto a Google Vision
 - [ ] Espera la respuesta (**1–3 segundos** normalmente)
@@ -181,7 +197,7 @@ Si el paso 3 funciona pero el móvil no, el problema es del móvil o del router,
 - [ ] Si no aparece nada: comprueba que la clave de API es correcta y que
       **Cloud Vision API** está activada en Google Cloud
 
-### Test 3: Comprobar que NO salen etiquetas abstractas
+### Test 4: Comprobar que NO salen etiquetas abstractas
 
 Este test verifica que `OBJECT_LOCALIZATION` está bien configurado.
 
@@ -191,12 +207,12 @@ Este test verifica que `OBJECT_LOCALIZATION` está bien configurado.
 - [ ] Si sale una de esas palabras abstractas, la app sigue pidiendo
       `LABEL_DETECTION`: revisa el texto del `PostText` del componente `Web2`
 
-### Test 4: Vision no reconoce nada
+### Test 5: Vision no reconoce nada
 
 - [ ] Haz una foto a una pared lisa o al techo
 - [ ] `OBJECT_LOCALIZATION` devolverá la lista **vacía**
 - [ ] La app debe mostrar `No he reconocido nada` y **no cerrarse**
-- [ ] Si la app se cierra, falta la comprobación `is list empty?` del apartado 2.7
+- [ ] Si la app se cierra, falta la comprobación `is list empty?` del apartado 2.8
 
 ---
 
