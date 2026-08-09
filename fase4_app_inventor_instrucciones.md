@@ -53,8 +53,8 @@ En la pestaña **Blocks**, programa los eventos:
 ### 3.1 – Evento: Tomar foto (BtnTomarFoto.Click)
 
 ```
-cuando BtnTomarFoto.Click
-   llamar Camera1.TakePicture
+when BtnTomarFoto.Click
+   call Camera1.TakePicture
 ```
 
 Este bloque ya viene con el componente Camera1 en App Inventor.
@@ -62,14 +62,14 @@ Este bloque ya viene con el componente Camera1 en App Inventor.
 ### 3.2 – Evento: Foto capturada (Camera1.AfterPicture)
 
 ```
-cuando Camera1.AfterPicture image (ruta de la foto)
-   llamar ResizeImage( image, 640 )
-   guardar en variable "fotoActual"
-   llamar ConvertirABase64( fotoActual )
-   guardar resultado en variable "base64Foto"
-   mostrar ImgFoto.Source = fotoActual
-   LblResultado.Text = "Foto capturada, enviando a Vision..."
-   llamar Vision_API( base64Foto )
+when Camera1.AfterPicture image (ruta de la foto)
+   call ResizeImage( image, 640 )
+   set fotoActual to result
+   call ConvertirABase64( fotoActual )
+   set base64Foto to result
+   set ImgFoto.Source to fotoActual
+   set LblResultado.Text to "Foto capturada, enviando a Vision..."
+   call Vision_API( base64Foto )
 ```
 
 **Nota**: Necesitas la extensión `Base64` (ver paso 4.1)
@@ -77,33 +77,31 @@ cuando Camera1.AfterPicture image (ruta de la foto)
 ### 3.3 – Evento: Respuesta de Google Vision
 
 ```
-cuando Web1.GotText response (respuesta JSON)
-   analizar JSON: respuesta
-   extraer: labelAnnotations[0].description
-   guardar en variable "etiquetaDetectada"
-   LblResultado.Text = etiquetaDetectada
-   LblEstado.Text = "Detectado: " + etiquetaDetectada
+when Web1.GotText response (respuesta JSON)
+   set etiquetaDetectada to get value from JSON object response key labelAnnotations[0].description
+   set LblResultado.Text to etiquetaDetectada
+   set LblEstado.Text to join "Detectado: " etiquetaDetectada
 ```
 
 ### 3.4 – Evento: Enviar a Arduino (BtnEnviar.Click)
 
 ```
-cuando BtnEnviar.Click
-   ip = TxtIPArduino.Text
-   texto = etiquetaDetectada
-   url = "http://" + ip + "/?texto=" + URLEncode(texto)
-   llamar Web2.Get( url )
-   LblEstado.Text = "Enviando a Arduino..."
+when BtnEnviar.Click
+   set ip to TxtIPArduino.Text
+   set texto to etiquetaDetectada
+   set url to join "http://" ip "/?texto=" (call Web1.UriEncode texto)
+   call Web2.Get url
+   set LblEstado.Text to "Enviando a Arduino..."
 ```
 
 ### 3.5 – Evento: Confirmación desde Arduino
 
 ```
-cuando Web2.GotText response
-   si response contiene "OK"
-      LblEstado.Text = "✓ Enviado a Arduino"
-   sino
-      LblEstado.Text = "✗ Error: " + response
+when Web2.GotText response
+   if response contains "OK"
+      set LblEstado.Text to "✓ Enviado a Arduino"
+   else
+      set LblEstado.Text to join "✗ Error: " response
 ```
 
 ---
@@ -162,7 +160,7 @@ Crea procedimientos (bloques personalizados) para que el código sea más limpio
 ### Función: ResizeImage
 
 ```
-procedimiento ResizeImage( imagenOriginal, maxAncho )
+procedure ResizeImage( imagenOriginal, maxAncho )
    // En App Inventor, típicamente la librería Canvas o Image maneja esto
    // Alternativa: usar servidor de redimensionado online
    return imagenRedimensionada
@@ -171,17 +169,17 @@ procedimiento ResizeImage( imagenOriginal, maxAncho )
 ### Función: ConvertirABase64
 
 ```
-procedimiento ConvertirABase64( rutaImagen )
-   extension.Base64.encode(imagenArchivo)
+procedure ConvertirABase64( rutaImagen )
+   set codigoBase64 to call Base64Extension.encode imagenArchivo
    return codigoBase64
 ```
 
 ### Función: URLEncode
 
 ```
-procedimiento URLEncode( texto )
-   // App Inventor tiene built-in
-   return Web1.URLDecode() (hay built-in)
+procedure URLEncode( texto )
+   // App Inventor tiene built-in: Web1.UriEncode
+   return call Web1.UriEncode texto
 ```
 
 ---
