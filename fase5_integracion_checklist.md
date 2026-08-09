@@ -116,14 +116,62 @@ Resultado esperado:
 
 ---
 
-## Fase 5.2: Prueba de Vision API (app solo, sin Arduino)
+## Fase 5.2: App mini — el móvil habla con la placa
+
+> 🎯 **Este es el hito más importante de la app.** Comprueba que el móvil llega al
+> Arduino, sin cámara ni IA de por medio. Corresponde a la **Etapa 1** de
+> [fase4_app_inventor_instrucciones.md](./fase4_app_inventor_instrucciones.md).
+>
+> **No sigas a la 5.3 hasta que esto funcione.**
+
+### Test 1: Enviar una palabra escrita a mano
+
+- [ ] El Arduino está encendido y muestra su IP
+- [ ] El móvil está en la **misma red WiFi** (con los datos móviles apagados)
+- [ ] La app está conectada por **AI Companion**
+- [ ] Escribe la IP del Arduino en `TxtIP`
+- [ ] Escribe `Cat` en `TxtPalabra` y pulsa el botón
+
+Resultado esperado:
+- [ ] El móvil muestra `Enviado correctamente`
+- [ ] La LCD muestra `Cat` abajo (y la IP sigue arriba)
+- [ ] El Monitor Serie imprime `--- Cliente conectado ---` y `Texto recibido: Cat`
+
+### Test 2: Una palabra con espacio
+
+- [ ] Escribe `Teddy bear` y envía
+- [ ] La LCD muestra **`Teddy bear` entero**, no solo `Teddy`
+- [ ] Si solo ves `Teddy`, falta el bloque `Web1.UriEncode`
+
+### Test 3: Una palabra con tilde
+
+- [ ] Escribe `camión` y envía
+- [ ] La LCD muestra `camion`, sin símbolos raros
+
+### Si no llega nada
+
+Sigue este orden, de lo más probable a lo menos:
+
+| # | Comprobar | Cómo |
+|---|---|---|
+| 1 | ¿La IP es la correcta? | Míralas otra vez: la de la LCD y la de la app |
+| 2 | ¿El móvil está en el WiFi? | Apaga los datos móviles del todo |
+| 3 | ¿La placa responde? | Desde el PC: `curl "http://LA_IP/?texto=Prueba"` |
+| 4 | ¿El router los aísla? | Busca "aislamiento de clientes" en su configuración |
+
+Si el paso 3 funciona pero el móvil no, el problema es del móvil o del router,
+**no del Arduino**.
+
+---
+
+## Fase 5.3: Prueba de Vision API (app sola, sin Arduino)
 
 ### Test 1: App toma foto
 
 - [ ] Abre la app en el móvil
-- [ ] Presiona "📷 Tomar foto"
-- [ ] Espera a que la cámara abre, toma una foto de un objeto
-- [ ] Verifica que la imagen aparece en la app
+- [ ] Pulsa "Hacer foto"
+- [ ] Se abre la cámara y haces una foto a un objeto
+- [ ] La foto aparece en la app
 
 ### Test 2: Vision reconoce la foto
 
@@ -141,35 +189,35 @@ Este test verifica que `OBJECT_LOCALIZATION` está bien configurado.
 - [ ] El resultado debe ser un objeto (`Teddy bear`, `Pillow`), **no** `Textile`,
       `Font` ni `Material property`
 - [ ] Si sale una de esas palabras abstractas, la app sigue pidiendo
-      `LABEL_DETECTION`: revisa el `PostData` del componente `Web1`
+      `LABEL_DETECTION`: revisa el texto del `PostText` del componente `Web2`
 
 ### Test 4: Vision no reconoce nada
 
 - [ ] Haz una foto a una pared lisa o al techo
 - [ ] `OBJECT_LOCALIZATION` devolverá la lista **vacía**
 - [ ] La app debe mostrar `No he reconocido nada` y **no cerrarse**
-- [ ] Si la app se cierra, falta la comprobación de "lista vacía" del paso 3.3
+- [ ] Si la app se cierra, falta la comprobación `is list empty?` del apartado 2.7
 
 ---
 
-## Fase 5.3: Flujo completo (Arduino + App)
+## Fase 5.4: Flujo completo (Arduino + App)
 
 ### Test 1: Envío simple desde app a Arduino
 
 **Precondiciones:**
-- [ ] Arduino corriendo, mostrando IP
-- [ ] App abierta en móvil en la misma red WiFi
-- [ ] IP del Arduino escrita en `TxtIPArduino` de la app
+- [ ] La fase 5.2 está superada (el móvil ya llega a la placa)
+- [ ] Arduino encendido, mostrando su IP
+- [ ] IP del Arduino escrita en `TxtIP` de la app
 
 **Pasos:**
-1. [ ] Toma una foto con el móvil
-2. [ ] Vision identifica objeto (espera a que aparezca la etiqueta)
-3. [ ] Presiona "Enviar a Arduino"
+1. [ ] Haz una foto con el móvil
+2. [ ] Espera a que Vision responda con el nombre del objeto
+3. [ ] El envío al Arduino es **automático** (lo hace `EnviarAlArduino`)
 4. [ ] En el Monitor Serie aparece: `--- Cliente conectado ---`, `Texto recibido: ...`
 5. [ ] **La LCD del Arduino muestra el nombre del objeto**
 
 **Resultado esperado:**
-- App: `✓ Enviado a Arduino`
+- App: `Es un/a: Cat`
 - Monitor Serie: el nombre impreso
 - LCD: IP arriba, nombre del objeto abajo
 
@@ -206,6 +254,9 @@ Vision devuelve muchos nombres de dos palabras (`Teddy bear`, `Coffee cup`, `Mob
 - [ ] La LCD muestra las **dos palabras**, no solo la primera
 - [ ] Si solo ves la primera palabra, falta el `Web1.UriEncode` en la app
 
+> Esto ya lo comprobaste en la fase 5.2. Si funcionaba allí y ahora no, el fallo está
+> en `EnviarAlArduino`, no en la red.
+
 ### Test 5: Latencia (tiempo total)
 
 Mide el tiempo desde que tomas la foto hasta que aparece en la LCD:
@@ -231,7 +282,7 @@ Mide el tiempo desde que tomas la foto hasta que aparece en la LCD:
 
 ---
 
-## Fase 5.4: Robustez y errores
+## Fase 5.5: Robustez y errores
 
 ### Test 1: Se pierde la conexión WiFi
 
@@ -265,7 +316,7 @@ El sketch comprueba la WiFi cada 5 segundos y se reconecta solo.
 
 ---
 
-## Fase 5.5: Documentación y video
+## Fase 5.6: Documentación y vídeo
 
 ### Test 1: Documentar flujo con screenshots
 
@@ -418,12 +469,13 @@ timeout funciona.
 
 ## Checklist final
 
-- [ ] El Arduino se conecta a la WiFi
-- [ ] La IP se ve en la LCD y se queda ahí
-- [ ] El servidor responde a `curl` desde el ordenador
-- [ ] Aguanta una conexión vacía sin colgarse (timeout)
+- [x] El Arduino se conecta a la WiFi
+- [x] La IP se ve en la LCD y se queda ahí
+- [x] El servidor responde a `curl` desde el ordenador
+- [x] Aguanta una conexión vacía sin colgarse (timeout)
+- [x] Vision reconoce objetos de verdad (no `Font` ni `Material property`)
+- [ ] **La app mini envía una palabra escrita a mano a la LCD** ← siguiente hito
 - [ ] La app hace fotos
-- [ ] Vision reconoce objetos de verdad (no `Font` ni `Material property`)
 - [ ] La app envía el nombre al Arduino
 - [ ] La LCD muestra el nombre
 - [ ] Funciona con varios objetos distintos

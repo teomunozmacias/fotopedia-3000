@@ -1,309 +1,429 @@
-# Fase 4: App en MIT App Inventor + Servidor HTTP
+# Fase 4 — La app del móvil (MIT App Inventor)
 
-## Paso 1: Crear proyecto en MIT App Inventor
+Vamos a construir la app en **dos etapas**, no de golpe.
 
-1. Ve a [MIT App Inventor](https://appinventor.mit.edu)
-2. Haz login (con tu cuenta de Google)
-3. Crea un nuevo proyecto: "Fotopedia 3000"
+| Etapa | Qué hace | Cuánto cuesta |
+|---|---|---|
+| **1 — App mini** | Escribes una palabra a mano y sale en la LCD | ~15 minutos |
+| **2 — App completa** | Le añades la cámara y la IA | Un rato más |
+
+### ¿Por qué en dos etapas?
+
+Si montas la app entera de una vez y al final no funciona, el fallo puede estar en
+**cuatro sitios distintos** (la red, la foto, el Base64 o la llamada a Google) y no hay
+forma de saber en cuál.
+
+Con la etapa 1 compruebas lo único que todavía no hemos probado: **que el móvil consigue
+hablar con la placa**. Si eso funciona, ya nunca más tendrás que dudar de ello.
+
+Y además se ve algo funcionando el primer día, que motiva bastante más que pelearse una
+tarde entera con extensiones antes de que se encienda nada.
+
+> ℹ️ Los nombres de los bloques van **en inglés**, igual que aparecen en el editor.
 
 ---
+---
 
-## Paso 2: Interfaz de usuario (Designer)
+# ETAPA 1 — App mini
 
-En la pestaña **Designer**, construye esto:
+**Objetivo**: escribir `Cat` en el móvil y que aparezca en la pantalla del Arduino.
 
-### Componentes necesarios
+Sin cámara. Sin IA. Sin extensiones. Solo el móvil hablando con la placa.
 
-| Componente | Nombre | Propiedad |
-|---|---|---|
-| **Vertical Arrangement** | VirtualScreen | (contenedor principal) |
-| **Button** | BtnTomarFoto | Text: "📷 Tomar foto" |
-| **Image** | ImgFoto | (preview de la foto) |
-| **Label** | LblResultado | Text: "Esperando..." |
-| **Label** | LblIP | Text: "Introduce IP Arduino:" |
-| **TextBox** | TxtIPArduino | Text: "192.168.1.X" (placeholder) |
-| **Button** | BtnEnviar | Text: "Enviar a Arduino" |
-| **Label** | LblEstado | Text: "" (para mostrar estado) |
+## 1.1 Crear el proyecto
 
-### Layout sugerido
+1. Entra en [MIT App Inventor](https://appinventor.mit.edu) y pulsa **Create Apps!**
+2. Inicia sesión con tu cuenta de Google
+3. **Projects → Start new project** → nombre: `Fotopedia3000`
+
+> El nombre no puede llevar espacios ni acentos.
+
+## 1.2 La pantalla (pestaña Designer)
+
+Arrastra estos componentes desde el panel **Palette** de la izquierda:
+
+| Dónde está | Componente | Renómbralo a | Propiedades |
+|---|---|---|---|
+| User Interface | Label | `LblTituloIP` | Text: `IP del Arduino:` |
+| User Interface | TextBox | `TxtIP` | Hint: `192.168.1.50` |
+| User Interface | Label | `LblTituloTexto` | Text: `Palabra a enviar:` |
+| User Interface | TextBox | `TxtPalabra` | Text: `Cat` |
+| User Interface | Button | `BtnEnviar` | Text: `Enviar a la pantalla` |
+| User Interface | Label | `LblEstado` | Text: *(vacío)* |
+| Connectivity | **Web** | `Web1` | *(no se ve en la pantalla)* |
+
+Para cambiar el nombre de un componente: selecciónalo y pulsa **Rename** debajo del
+panel **Components**.
+
+Debería quedarte algo así:
 
 ```
 ┌─────────────────────────┐
-│  FOTOPEDIA 3000         │
-├─────────────────────────┤
-│  [📷 Tomar foto]        │
-│  ┌─────────────────┐    │
-│  │                 │    │
-│  │   (imagen)      │    │
-│  │                 │    │
-│  └─────────────────┘    │
-│  Detectado: "..."       │
-│  IP Arduino: [     ]    │
-│  [Enviar a Arduino]     │
-│  Estado: "..."          │
+│ IP del Arduino:         │
+│ [192.168.1.50         ] │
+│                         │
+│ Palabra a enviar:       │
+│ [Cat                  ] │
+│                         │
+│  [ Enviar a la pantalla]│
+│                         │
+│ Estado: ...             │
 └─────────────────────────┘
 ```
 
----
+## 1.3 La lógica (pestaña Blocks)
 
-## Paso 3: Lógica (Blocks)
+Solo hacen falta **dos bloques**.
 
-En la pestaña **Blocks**, programa los eventos:
-
-### 3.1 – Evento: Tomar foto (BtnTomarFoto.Click)
-
-```
-when BtnTomarFoto.Click
-   call Camera1.TakePicture
-```
-
-Este bloque ya viene con el componente Camera1 en App Inventor.
-
-### 3.2 – Evento: Foto capturada (Camera1.AfterPicture)
-
-```
-when Camera1.AfterPicture image (ruta de la foto)
-   call ResizeImage( image, 640 )
-   set fotoActual to result
-   call ConvertirABase64( fotoActual )
-   set base64Foto to result
-   set ImgFoto.Source to fotoActual
-   set LblResultado.Text to "Foto capturada, enviando a Vision..."
-   call Vision_API( base64Foto )
-```
-
-**Nota**: Necesitas la extensión `Base64` (ver paso 4.1)
-
-### 3.3 – Evento: Respuesta de Google Vision
-
-Usamos `OBJECT_LOCALIZATION`, así que el nombre del objeto está en
-`responses[0].localizedObjectAnnotations[0].name` (ver el README para saber por qué).
-
-```
-when Web1.GotText responseContent
-   set global respuesta to call JsonTextDecodeWithDictionaries responseContent
-   set global objetos to get value for key "localizedObjectAnnotations"
-                          in dictionary (first item of (get value for key "responses"))
-                          or if not found create empty list
-
-   if is list empty? (get global objetos)
-      set LblResultado.Text to "No he reconocido nada"
-      set LblEstado.Text to "Prueba a acercarte mas"
-   else
-      set global etiquetaDetectada to
-            get value for key "name" in dictionary (select list item list (get global objetos) index 1)
-      set LblResultado.Text to get global etiquetaDetectada
-      set LblEstado.Text to join "Detectado: " (get global etiquetaDetectada)
-```
-
-**Importante**: comprueba **siempre** si la lista está vacía antes de leer el primer
-elemento. Si Vision no reconoce nada (una pared, el cielo) y lo lees sin comprobar,
-la app se cierra con un error.
-
-### 3.4 – Evento: Enviar a Arduino (BtnEnviar.Click)
+### Bloque 1 — Al pulsar el botón
 
 ```
 when BtnEnviar.Click
-   set ip to TxtIPArduino.Text
-   set texto to etiquetaDetectada
-   set url to join "http://" ip "/?texto=" (call Web1.UriEncode texto)
-   call Web2.Get url
-   set LblEstado.Text to "Enviando a Arduino..."
+do  set Web1.Url to join
+        "http://"
+        TxtIP.Text
+        "/?texto="
+        call Web1.UriEncode  text  TxtPalabra.Text
+
+    call Web1.Get
+
+    set LblEstado.Text to "Enviando..."
 ```
 
-### 3.5 – Evento: Confirmación desde Arduino
+**Qué hace cada trozo:**
+
+| Trozo | Para qué sirve |
+|---|---|
+| `join` | Pega textos uno detrás de otro, como un tren de vagones |
+| `TxtIP.Text` | La dirección que sale en la pantalla del Arduino |
+| `/?texto=` | Así es como se le pasa un dato a una dirección web |
+| `Web1.UriEncode` | Disfraza los espacios y las tildes para que viajen bien |
+| `Web1.Get` | Manda la petición |
+
+> ⚠️ **No te saltes el `UriEncode`.** Sin él, `Teddy bear` llegaría cortado y en la
+> pantalla solo verías `Teddy`. Es un fallo muy típico y difícil de encontrar.
+
+### Bloque 2 — Cuando el Arduino contesta
 
 ```
-when Web2.GotText response
-   if response contains "OK"
-      set LblEstado.Text to "✓ Enviado a Arduino"
-   else
-      set LblEstado.Text to join "✗ Error: " response
+when Web1.GotText (url, responseCode, responseType, responseContent)
+do  if  responseCode = 200
+    then set LblEstado.Text to "Enviado correctamente"
+    else set LblEstado.Text to join "Error: " responseCode
 ```
+
+`responseCode` es el número que devuelve el Arduino: **200** significa "todo bien".
+
+## 1.4 Probarlo
+
+1. **Enciende el Arduino** y apunta la IP que sale en la pantalla
+2. Móvil y Arduino, **en la misma red WiFi de 2,4 GHz**
+3. En App Inventor: **Connect → AI Companion**, y escanea el código QR con la app
+   *MIT AI2 Companion* del móvil
+4. Escribe la IP y la palabra `Cat`
+5. Pulsa el botón
+
+### ✅ Si funciona
+
+La LCD del Arduino muestra `Cat` en la línea de abajo y el móvil dice
+`Enviado correctamente`.
+
+**Enhorabuena: el móvil y la placa ya se hablan.** Esa es la parte que solía dar
+problemas, y ya está resuelta. Prueba también con `Teddy bear` (con espacio) para
+comprobar que el `UriEncode` hace su trabajo.
+
+### ❌ Si no funciona
+
+| Lo que ves | Qué suele ser |
+|---|---|
+| Se queda en `Enviando...` para siempre | El móvil no llega a la placa: mira lo de abajo |
+| `Error: 400` | Llega, pero sin el parámetro. Revisa que pusiste `/?texto=` |
+| En la LCD solo la primera palabra | Falta el `UriEncode` |
+| `Error: 403` o similar | La IP escrita no es la del Arduino |
+
+**Si no llega nada**, comprueba en este orden:
+
+1. ¿La IP de la app es **exactamente** la de la pantalla? (cambia al reiniciar el router)
+2. ¿El móvil está en el **WiFi de casa** y no en datos móviles? Desactiva los datos
+3. Desde el ordenador, en la misma red:
+   `curl "http://LA_IP/?texto=Prueba"` — si desde el PC sí funciona y desde el móvil no,
+   el problema es del móvil o del router, no del Arduino
+4. Algunos routers tienen **"aislamiento de clientes"** activado, que impide que los
+   aparatos de la casa se hablen entre ellos. Búscalo en la configuración del router
+
+**No sigas a la etapa 2 hasta que esto funcione.**
 
 ---
+---
 
-## Paso 4: Configuración de componentes
+# ETAPA 2 — App completa
 
-### 4.1 – Extensión Base64 (imprescindible)
+Ahora le añadimos la cámara y la IA a la app que ya funciona.
 
-Google Vision no acepta la foto tal cual: hay que mandarla convertida a **Base64**, que
-es una forma de escribir un archivo usando solo letras y números.
+El camino que recorre la foto es este:
 
-**MIT App Inventor no sabe hacer Base64 de serie.** Hay que instalar una extensión:
+```
+📷 foto  →  hacerla pequeña  →  convertir a Base64  →  Google Vision
+                                                            ↓
+                     LCD  ←  Arduino  ←  enviar el nombre  ←┘
+```
 
-1. En la pestaña **Designer**, panel de la izquierda del todo, abajo: **Extension**
-2. Pulsa **Import extension** → **From my computer** (o desde URL)
-3. Descarga una extensión de ficheros/Base64 de la comunidad de App Inventor
-   (busca *"App Inventor Base64 extension"* o *"File extension TaifunFile"*, que incluye
-   `ReadFrom` en Base64)
-4. Arrástrala a la pantalla; aparecerá como componente no visible
+## 2.1 Antes de empezar: dos avisos honestos
 
-Eso te da un bloque del tipo `call Base64.encodeFile path`.
+App Inventor **no sabe hacer de serie** dos de esas cosas:
 
-> ⚠️ Las extensiones son ficheros `.aix` hechos por gente de la comunidad, no por el MIT.
-> Descárgalas solo de la web oficial de la comunidad de App Inventor.
-
-### 4.1.b – Reducir la foto antes de enviarla
-
-Una foto del móvil puede ocupar **3–8 MB**. Convertida a Base64 crece otro 33 %, y
-mandar eso por WiFi es lento (y se come la cuota de Google). Con **640 px de ancho sobra**
-para que Vision reconozca el objeto.
-
-**La verdad**: App Inventor **tampoco sabe redimensionar imágenes de serie**. Opciones reales:
-
-| Cómo | Qué hacer | Nota |
+| Lo que hace falta | ¿Viene incluido? | Solución |
 |---|---|---|
-| **Bajar la calidad de la cámara** ⭐ *lo más fácil* | En el Designer, selecciona `Camera1` y baja la propiedad **Quality** | No cambia el tamaño en píxeles, pero reduce mucho el peso |
-| **Usar `Canvas`** | Poner un `Canvas` de 640 px de ancho, cargar la foto como fondo y guardar con `Canvas.SaveAs` | Funciona, pero da algo de guerra |
-| **Extensión de imagen** | Buscar una extensión tipo *Image* / *TaifunImage* con bloque de redimensionado | La más limpia si la encuentras |
+| Convertir la foto a **Base64** | ❌ No | Instalar una extensión |
+| **Reducir** el tamaño de la foto | ❌ No | Truco del Canvas, o extensión |
 
-Empieza por bajar **Quality**; si va rápido, no compliques más.
+> 📌 **Corrección**: una versión anterior de este documento decía que bastaba con bajar la
+> propiedad `Quality` del componente `Camera`. **Eso no es cierto**: el componente
+> `Camera` de App Inventor no tiene esa propiedad. Lo dejamos escrito para que no se
+> repita el error.
 
-### 4.2 – Componente Camera1
+### ¿Por qué hay que hacer la foto pequeña?
 
-Viene por defecto. Asegúrate de tener estos permisos en **AndroidManifest** (App Inventor los pide automáticamente):
-- `android.permission.CAMERA`
-- `android.permission.WRITE_EXTERNAL_STORAGE`
+Una foto del móvil ocupa **entre 3 y 8 MB**. Al convertirla a Base64 crece otro 33 %.
+Mandar todo eso por WiFi es lento y consume cuota de Google sin ninguna necesidad:
+con **640 píxeles de ancho, Vision reconoce igual de bien**.
 
-### 4.3 – Componente Web1 (llamar a Google Vision)
+En la página de la Fase 3 podéis verlo: al arrastrar una foto os dice cuánto adelgaza.
 
-Configura:
-- **Url**: `https://vision.googleapis.com/v1/images:annotate?key=TU_CLAVE_API`
-- **Method**: POST
-- **RequestHeaders**: 
-  - `Content-Type: application/json`
-- **PostData**: JSON formateado
+## 2.2 Instalar la extensión de Base64
+
+1. En la pestaña **Designer**, panel **Palette** de la izquierda, baja del todo:
+   **Extension → Import extension → From my computer**
+2. Necesitas un fichero `.aix`. Búscalo en la
+   [comunidad de App Inventor](https://community.appinventor.mit.edu) con
+   *"base64 extension"* o *"file extension"*
+3. Arrástralo a la pantalla: aparecerá abajo como componente **no visible**
+
+> ⚠️ Las extensiones `.aix` las hace gente de la comunidad, **no el MIT**.
+> Descárgalas solo del foro oficial y no de sitios raros.
+
+> 🔍 **Los nombres de los bloques cambian según la extensión que instales.**
+> Busca uno que diga algo como `Base64Encode`, `EncodeFile` o `FileToBase64`.
+> Ajusta los bloques de abajo al nombre que veas en tu editor.
+
+## 2.3 Componentes nuevos
+
+Añade a lo que ya tenías:
+
+| Dónde está | Componente | Renómbralo a | Notas |
+|---|---|---|---|
+| Media | Camera | `Camera1` | |
+| User Interface | Button | `BtnFoto` | Text: `Hacer foto` |
+| User Interface | Image | `ImgFoto` | Para ver la foto |
+| Drawing and Animation | Canvas | `Canvas1` | Width: `640`, Height: `480` |
+| Connectivity | **Web** | `Web2` | ⚠️ **Otro Web distinto**, para Google |
+| *(el que instalaste)* | Base64 | `Base64` | |
+
+> ⚠️ **Dos componentes Web, y esto importa.** `Web1` habla con el Arduino y `Web2` habla
+> con Google. Si usas el mismo para las dos cosas, las respuestas se mezclan en el mismo
+> bloque `GotText` y no hay quien lo entienda.
+
+Pon el `Canvas1` con **Visible = false** cuando todo funcione: solo lo usamos para
+encoger la foto, no hace falta verlo.
+
+## 2.4 Variables
+
+En **Blocks**, apartado **Variables**, crea estas tres:
+
+```
+initialize global rutaFoto      to ""
+initialize global base64Foto    to ""
+initialize global nombreObjeto  to ""
+```
+
+## 2.5 Hacer la foto
+
+```
+when BtnFoto.Click
+do  call Camera1.TakePicture
+    set LblEstado.Text to "Abriendo la camara..."
+```
+
+```
+when Camera1.AfterPicture (image)
+do  set global rutaFoto to image
+    set ImgFoto.Picture to image
+
+    // Encogerla usando el Canvas
+    set Canvas1.BackgroundImage to image
+    set global rutaFoto to call Canvas1.SaveAs  fileName "pequena.jpg"
+
+    // Convertirla a Base64  (ajusta el nombre del bloque a tu extension)
+    set global base64Foto to call Base64.EncodeFile  path (get global rutaFoto)
+
+    set LblEstado.Text to "Preguntando a la IA..."
+    call AnalizarConVision
+```
+
+## 2.6 Llamar a Google Vision
+
+Crea un **procedimiento** (apartado **Procedures → to procedure do**) y llámalo
+`AnalizarConVision`:
+
+```
+to AnalizarConVision
+do  set Web2.Url to join
+        "https://vision.googleapis.com/v1/images:annotate?key="
+        "AQUI_TU_CLAVE_DE_API"
+
+    set Web2.RequestHeaders to
+        make a list (make a list "Content-Type" "application/json")
+
+    call Web2.PostText  text (join
+        "{\"requests\":[{\"image\":{\"content\":\""
+        get global base64Foto
+        "\"},\"features\":[{\"type\":\"OBJECT_LOCALIZATION\",\"maxResults\":5}]}]}"
+    )
+```
+
+> 💡 En los bloques de texto de App Inventor las comillas se escriben **tal cual**, no
+> hace falta ponerles nada delante. Los `\"` de arriba son solo para que se lea bien en
+> este documento.
+
+**Por qué `OBJECT_LOCALIZATION`**: devuelve objetos de verdad (`Cat`, `Chair`,
+`Teddy bear`) en vez de etiquetas abstractas (`Font`, `Material property`).
+Lo comprobamos con nuestras propias fotos en la Fase 3; está explicado en el README.
+
+## 2.7 Leer la respuesta de Google
+
+Aquí está la parte más delicada. La respuesta viene así:
 
 ```json
 {
-  "requests": [{
-    "image": { "content": "<BASE64_DE_LA_FOTO>" },
-    "features": [{ "type": "OBJECT_LOCALIZATION", "maxResults": 5 }]
-  }]
+  "responses": [
+    { "localizedObjectAnnotations": [ { "name": "Cat", "score": 0.94 } ] }
+  ]
 }
 ```
 
-Se envía con el bloque `call Web1.PostText text`.
+Hay que ir entrando capa por capa: primero `responses`, luego el primer elemento, luego
+`localizedObjectAnnotations`, y por fin el `name` del primero.
 
-> 💡 Usamos `OBJECT_LOCALIZATION` en vez de `LABEL_DETECTION` porque devuelve
-> **objetos de verdad** (`Cat`, `Chair`) en lugar de etiquetas abstractas
-> (`Font`, `Material property`). Está explicado en detalle en el README.
+```
+when Web2.GotText (url, responseCode, responseType, responseContent)
+do  if  responseCode ≠ 200
+    then set LblEstado.Text to join "Error de Google: " responseCode
+    else
+        set global datos to
+            call Web2.JsonTextDecodeWithDictionaries  jsonText responseContent
 
-### 4.4 – Componente Web2 (llamar a Arduino)
+        set global respuestas to
+            get value for key "responses" in dictionary (get global datos)
+            or if not found (create empty list)
 
-Configura:
-- **Url**: `http://<IP_ARDUINO>/?texto=<ETIQUETA>`
-- **Method**: GET
+        set global objetos to
+            get value for key "localizedObjectAnnotations"
+            in dictionary (select list item  list (get global respuestas)  index 1)
+            or if not found (create empty list)
+
+        if  is list empty? (get global objetos)
+        then set LblEstado.Text to "No he reconocido nada. Prueba a acercarte."
+        else
+            set global nombreObjeto to
+                get value for key "name"
+                in dictionary (select list item  list (get global objetos)  index 1)
+                or if not found ""
+
+            set LblEstado.Text to join "Es un/a: " (get global nombreObjeto)
+            set TxtPalabra.Text to get global nombreObjeto
+            call EnviarAlArduino
+```
+
+> ⚠️ **La comprobación `is list empty?` no es opcional.** Si haces una foto a una pared
+> lisa o al cielo, Vision no encuentra ningún objeto y devuelve la lista vacía. Si lees
+> el primer elemento de una lista vacía, **la app se cierra de golpe**.
+
+## 2.8 Reutilizar el envío de la etapa 1
+
+Convierte el bloque del botón de la etapa 1 en un procedimiento, para poder llamarlo
+también desde aquí:
+
+```
+to EnviarAlArduino
+do  set Web1.Url to join
+        "http://"
+        TxtIP.Text
+        "/?texto="
+        call Web1.UriEncode  text (get global nombreObjeto)
+
+    call Web1.Get
+```
+
+Y deja el botón manual llamando al mismo sitio (viene bien para hacer pruebas sin gastar
+cuota de Google):
+
+```
+when BtnEnviar.Click
+do  set global nombreObjeto to TxtPalabra.Text
+    call EnviarAlArduino
+```
 
 ---
 
-## Paso 5: Funciones helper (Bloques personalizados)
+## 2.9 Dónde va la clave de API
 
-Crea procedimientos (bloques personalizados) para que el código sea más limpio:
+En este proyecto la clave va **escrita dentro de la app**, porque es la única forma
+sencilla sin montar un servidor. Hay que asumir lo que eso significa:
 
-### Función: ResizeImage
-
-⚠️ **App Inventor no tiene un bloque de redimensionar.** Este "procedimiento" es en
-realidad una de las tres soluciones del apartado 4.1.b. Si bajas la calidad de la cámara
-(lo más fácil), **no necesitas este procedimiento en absoluto**: borra la llamada del
-bloque `Camera1.AfterPicture` y usa la ruta de la foto directamente.
-
-Si optas por el `Canvas`:
-
-```
-procedure ResizeImage( rutaFoto )
-   set Canvas1.Width  to 640
-   set Canvas1.Height to 480
-   set Canvas1.BackgroundImage to rutaFoto
-   set global rutaReducida to call Canvas1.SaveAs "reducida.jpg"
-   return get global rutaReducida
-```
-
-### Función: ConvertirABase64
-
-Depende de la extensión que hayas instalado; el nombre del bloque cambia según cuál sea.
-
-```
-procedure ConvertirABase64( rutaImagen )
-   set global codigoBase64 to call Base64Extension.encodeFile rutaImagen
-   return get global codigoBase64
-```
-
-### Función: URLEncode
-
-```
-procedure URLEncode( texto )
-   // App Inventor tiene built-in: Web1.UriEncode
-   return call Web1.UriEncode texto
-```
+- La app es **solo para vosotros**. No la publiques en Google Play
+- En Google Cloud, restringe la clave **solo a Cloud Vision API**
+- Pon una **alerta de presupuesto**, por si acaso
+- Si algún día se filtra: **bórrala y crea otra**, se hace en dos clics
 
 ---
 
-## Paso 6: Pruebas
+## Resolución de problemas
 
-### Test 1: Tomar foto y mostrar
+### La app se cierra sola al hacer la foto
 
-1. Instala la app en el móvil (APK)
-2. Presiona "Tomar foto"
-3. Verifica que aparece en pantalla
+Casi siempre es la conversión a Base64 con una foto demasiado grande: se queda sin
+memoria. Comprueba que el `Canvas1` está encogiendo de verdad (ponlo visible un momento
+y mira si sale la foto dentro).
 
-### Test 2: Enviar a Vision (sin Arduino)
+### `Error de Google: 403`
 
-1. Toma una foto
-2. Verifica que llega a Google Vision
-3. Comprueba en la app que aparece la etiqueta detectada
+La clave está mal, **Cloud Vision API** no está activada en tu proyecto, o falta activar
+la facturación. Pruébala primero en la página de la Fase 3: si allí tampoco funciona,
+el problema es de la clave y no de la app.
 
-### Test 3: Enviar a Arduino (flujo completo)
+### `Error de Google: 400`
 
-1. Asegúrate de que **Arduino corre el sketch Fase 4** y muestra la IP en pantalla
-2. En la app, escribe la IP en el campo `TxtIPArduino`
-3. Toma una foto
-4. Presiona "Enviar a Arduino"
-5. **Verifica que el nombre aparece en la LCD de Arduino**
+El JSON va mal formado. Casi siempre es que `base64Foto` está vacío, o que en el texto
+del `PostText` falta una comilla o una llave.
 
----
+### Google responde bien pero la LCD no cambia
 
-## Paso 7: Consideraciones especiales
+Entonces el fallo está entre la app y el Arduino, no en la IA. Vuelve a la **etapa 1**:
+escribe una palabra a mano y pulsa el botón. Si tampoco va, el problema es de red.
 
-### ⚠️ Red WiFi local
+### En la LCD solo sale la primera palabra
 
-- El Arduino y el móvil **tienen que estar en la MISMA red WiFi**
-- El Arduino Uno R4 WiFi **solo funciona en 2,4 GHz**, no en 5 GHz. Si tu router tiene
-  las dos redes con nombres distintos, conecta el móvil a la de 2,4 GHz
-- Algunos routers ponen los aparatos "IoT" en una red aparte que no se ve desde el móvil.
-  Si no consigues llegar a la placa, mira esa opción en la configuración del router
+Falta el `Web1.UriEncode`.
 
-### ⚠️ Clave de Google Vision API
+### Sale algo abstracto tipo `Textile`
 
-En este proyecto la clave va **dentro de la app**, porque es la única forma sencilla de
-hacerlo sin montar un servidor. Hay que asumir lo que eso significa:
-
-- La app es **solo para vosotros**; no la publiques en Google Play
-- Restringe la clave en Google Cloud **solo a Cloud Vision API**
-- Pon una **alerta de presupuesto** en Google Cloud, por si acaso
-- Si algún día la clave se filtra, **bórrala y crea otra** — se hace en dos clics
-
-### ⚠️ Los espacios en la URL
-
-Vision devuelve nombres con espacios, como `Teddy bear` o `Coffee cup`. Un espacio no
-puede ir tal cual en una dirección web, por eso usamos `Web1.UriEncode`:
-
-- `Teddy bear` → `Teddy%20bear` → viaja por la red → el Arduino lo vuelve a convertir en `Teddy bear`
-
-Si se te olvida el `UriEncode`, en la pantalla solo saldrá `Teddy` (la primera palabra).
-
-### ℹ️ Mejoras futuras
-
-- Guardar un histórico de los objetos detectados
-- Botón para elegir entre `OBJECT_LOCALIZATION` y `LABEL_DETECTION`
-- Enviar también el porcentaje de confianza (`score`) y mostrarlo en la LCD
-- Sincronizar además con Arduino Cloud (fase opcional)
+La app está pidiendo `LABEL_DETECTION` en vez de `OBJECT_LOCALIZATION`. Revisa el texto
+del `PostText` del apartado 2.6.
 
 ---
 
-## Recursos
+## Ideas para después
 
-- [MIT App Inventor Docs](https://appinventor.mit.edu/explore/ai2/tutorials)
-- [Google Vision API](https://cloud.google.com/vision/docs)
-- [WiFiS3 Arduino](https://docs.arduino.cc/libraries/wifi-s3/)
+- Enseñar también el `score` (el porcentaje de acierto) en la pantalla
+- Guardar una lista de todo lo que habéis reconocido
+- Un botón para elegir entre `OBJECT_LOCALIZATION` y `LABEL_DETECTION` y comparar
+- Un sonido cuando el Arduino confirma que lo ha recibido
+
+---
+
+## Enlaces
+
+- [Tutoriales de MIT App Inventor](https://appinventor.mit.edu/explore/ai2/tutorials)
+- [Foro de la comunidad (extensiones)](https://community.appinventor.mit.edu)
+- [Documentación de Google Vision](https://cloud.google.com/vision/docs)
+- [Librería WiFiS3 del Arduino](https://docs.arduino.cc/libraries/wifi-s3/)
