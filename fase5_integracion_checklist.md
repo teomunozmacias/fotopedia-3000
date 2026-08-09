@@ -195,8 +195,8 @@ Repite Test 1 con diferentes objetos:
 
 Busca un objeto cuyo nombre pase de 16 letras (`Chest of drawers` = 16, `Home appliance`, `Musical instrument`):
 
-- [ ] En la app se ve el nombre completo: ej. `Musical instrument`
-- [ ] En la LCD se corta a 16: `Musical instrum`
+- [ ] En la app se ve el nombre completo: ej. `Musical instrument` (18 letras)
+- [ ] En la LCD se corta a 16: `Musical instrume`
 - [ ] No salen caracteres raros ni se apaga la pantalla
 
 ### Test 4: Casos límite — Nombres con espacio

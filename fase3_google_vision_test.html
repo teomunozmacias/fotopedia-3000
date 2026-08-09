@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fotopedia 3000 — Prueba de Google Vision</title>
+<style>
+  :root {
+    --fondo:      #f4f5f7;
+    --papel:      #ffffff;
+    --texto:      #1a1c1f;
+    --suave:      #61666e;
+    --borde:      #d8dbe0;
+    --acento:     #2f6feb;
+    --bien:       #1f8a4c;
+    --regular:    #b06a00;
+    --mal:        #c0392b;
+    --resaltado:  #fff4d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fondo:     #14161a;
+      --papel:     #1d2025;
+      --texto:     #e8eaed;
+      --suave:     #9aa0a8;
+      --borde:     #333941;
+      --acento:    #6ea3ff;
+      --bien:      #4ecb7d;
+      --regular:   #e0a63a;
+      --mal:       #ff7b6b;
+      --resaltado: #3a3117;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 24px 16px 60px;
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.55;
+  }
+
+  .envoltorio { max-width: 900px; margin: 0 auto; }
+
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  .subtitulo { color: var(--suave); margin: 0 0 28px; }
+
+  .tarjeta {
+    background: var(--papel);
+    border: 1px solid var(--borde);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 18px;
+  }
+
+  .paso {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--acento);
+    color: #fff;
+    font-size: .8rem;
+    font-weight: 700;
+    margin-right: 8px;
+  }
+
+  label { display: block; font-weight: 600; margin-bottom: 6px; font-size: .92rem; }
+
+  input[type="password"], input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--borde);
+    border-radius: 8px;
+    background: var(--fondo);
+    color: var(--texto);
+    font-size: 1rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  .aviso {
+    font-size: .85rem;
+    color: var(--suave);
+    margin-top: 8px;
+  }
+
+  #zona {
+    border: 2px dashed var(--borde);
+    border-radius: 12px;
+    padding: 36px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  #zona:hover, #zona.encima { border-color: var(--acento); background: var(--fondo); }
+  #zona .icono { font-size: 2.4rem; display: block; margin-bottom: 8px; }
+  #zona .pista { color: var(--suave); font-size: .88rem; }
+
+  #vistaPrevia { margin-top: 16px; text-align: center; display: none; }
+  #vistaPrevia img {
+    max-width: 100%;
+    max-height: 260px;
+    border-radius: 8px;
+    border: 1px solid var(--borde);
+  }
+  #datosFoto { font-size: .85rem; color: var(--suave); margin-top: 8px; }
+
+  button {
+    background: var(--acento);
+    color: #fff;
+    border: 0;
+    border-radius: 8px;
+    padding: 11px 20px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.secundario { background: transparent; color: var(--acento); border: 1px solid var(--acento); }
+
+  .columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 680px) { .columnas { grid-template-columns: 1fr; } }
+
+  .columna { border: 1px solid var(--borde); border-radius: 10px; overflow: hidden; }
+  .columna header {
+    padding: 10px 14px;
+    background: var(--fondo);
+    border-bottom: 1px solid var(--borde);
+    font-weight: 700;
+    font-size: .9rem;
+  }
+  .columna .cuerpo { padding: 6px 14px 14px; }
+
+  .fila {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--borde);
+  }
+  .fila:last-child { border-bottom: 0; }
+  .fila .nombre { font-weight: 600; }
+  .fila .puntuacion { color: var(--suave); font-size: .85rem; font-variant-numeric: tabular-nums; }
+  .fila.generica { background: var(--resaltado); margin: 0 -14px; padding-left: 14px; padding-right: 14px; }
+  .fila.generica .nombre::after {
+    content: " ← abstracta";
+    font-weight: 400;
+    font-size: .78rem;
+    color: var(--regular);
+  }
+  .fila.elegida .nombre::before { content: "⭐ "; }
+
+  .vacio { color: var(--suave); padding: 14px 0; font-style: italic; }
+
+  .veredicto {
+    margin-top: 18px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border-left: 4px solid var(--acento);
+    background: var(--fondo);
+  }
+  .veredicto .grande { font-size: 1.3rem; font-weight: 700; }
+
+  .error {
+    background: var(--papel);
+    border: 1px solid var(--mal);
+    border-left-width: 4px;
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: var(--mal);
+  }
+  .error strong { display: block; margin-bottom: 4px; }
+  .error .detalle { color: var(--suave); font-size: .87rem; margin-top: 8px; }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--fondo);
+    border: 1px solid var(--borde);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: .88em;
+    word-break: break-all;
+  }
+
+  .oculto { display: none !important; }
+  .cargando { color: var(--suave); }
+  .fila-controles { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+  .fila-controles > div { flex: 1 1 220px; }
+</style>
+</head>
+<body>
+<div class="envoltorio">
+
+  <h1>📸 Fotopedia 3000 — Prueba de Google Vision</h1>
+  <p class="subtitulo">
+    Compara las dos formas de reconocer una foto para ver cuál funciona mejor,
+    antes de montar la app del móvil.
+  </p>
+
+  <!-- ── PASO 1 ────────────────────────────────────────────── -->
+  <div class="tarjeta">
+    <h2><span class="paso">1</span>Tu clave de Google Vision</h2>
+    <label for="clave">Clave de API</label>
+    <input type="password" id="clave" placeholder="AIza..." autocomplete="off" spellcheck="false">
+    <p class="aviso">
+      🔒 La clave <strong>no se guarda en este archivo</strong>. Solo se recuerda mientras
+      tengas esta pestaña abierta, y se olvida al cerrarla. Por eso esta página se puede
+      subir a GitHub sin peligro.
+    </p>
+  </div>
+
+  <!-- ── PASO 2 ────────────────────────────────────────────── -->
+  <div class="tarjeta">
+    <h2><span class="paso">2</span>Elige una foto</h2>
+    <div id="zona">
+      <span class="icono">🖼️</span>
+      <strong>Arrastra una foto aquí</strong>
+      <div class="pista">o haz clic para buscarla en tu ordenador</div>
+    </div>
+    <input type="file" id="ficheroFoto" accept="image/*" class="oculto">
+
+    <div id="vistaPrevia">
+      <img id="imagenPrevia" alt="Foto elegida">
+      <div id="datosFoto"></div>
+    </div>
+  </div>
+
+  <!-- ── PASO 3 ────────────────────────────────────────────── -->
+  <div class="tarjeta">
+    <h2><span class="paso">3</span>Preguntar a la IA</h2>
+    <button id="botonAnalizar" disabled>Analizar la foto</button>
+    <span id="estado" class="aviso"></span>
+  </div>
+
+  <!-- ── RESULTADOS ────────────────────────────────────────── -->
+  <div class="tarjeta oculto" id="tarjetaResultados">
+    <h2>Resultados</h2>
+    <div class="columnas">
+      <div class="columna">
+        <header>LABEL_DETECTION <span style="font-weight:400">(etiquetas)</span></header>
+        <div class="cuerpo" id="listaEtiquetas"></div>
+      </div>
+      <div class="columna">
+        <header>OBJECT_LOCALIZATION <span style="font-weight:400">(objetos)</span></header>
+        <div class="cuerpo" id="listaObjetos"></div>
+      </div>
+    </div>
+
+    <div class="veredicto" id="veredicto"></div>
+  </div>
+
+  <!-- ── ENVIAR AL ARDUINO ─────────────────────────────────── -->
+  <div class="tarjeta oculto" id="tarjetaArduino">
+    <h2><span class="paso">4</span>Mandarlo a la pantalla (opcional)</h2>
+    <div class="fila-controles">
+      <div>
+        <label for="ipArduino">IP del Arduino (la que sale en la LCD)</label>
+        <input type="text" id="ipArduino" placeholder="192.168.1.50" spellcheck="false">
+      </div>
+      <button id="botonEnviar" class="secundario">Enviar a la LCD</button>
+    </div>
+    <p class="aviso" id="urlArduino"></p>
+    <p class="aviso">
+      👀 El navegador no puede leer la respuesta del Arduino por seguridad, así que
+      <strong>mira la pantalla</strong> para saber si ha llegado.
+    </p>
+  </div>
+
+  <!-- ── ERRORES ───────────────────────────────────────────── -->
+  <div class="error oculto" id="cajaError"></div>
+
+</div>
+
+<script>
+"use strict";
+
+// ───────────────────────────────────────────────────────────────
+// Etiquetas que describen la imagen en vez del objeto.
+// Son las que hacen que salga "Textile" en lugar de "Teddy bear".
+// ───────────────────────────────────────────────────────────────
+const GENERICAS = new Set([
+  "font", "material property", "pattern", "rectangle", "line", "circle",
+  "art", "sky", "wood", "metal", "plastic", "product", "textile",
+  "automotive design", "gesture", "event", "fun", "room", "flooring",
+  "sleeve", "magenta", "azure", "electric blue", "tints and shades",
+  "colorfulness", "symmetry", "still life photography", "close-up",
+  "macro photography", "space", "terrestrial plant", "grass", "beige",
+  "peach", "linens", "publication", "brand", "logo", "graphics",
+  "illustration", "art paint", "paint", "rectangle", "triangle", "circle"
+]);
+
+const ANCHO_MAXIMO = 640;   // lo mismo que hara la app del movil
+const CALIDAD_JPEG = 0.85;
+
+let base64Foto = null;
+let nombreElegido = null;
+
+// ── Atajos ─────────────────────────────────────────────────────
+const $ = (id) => document.getElementById(id);
+
+const zona          = $("zona");
+const ficheroFoto   = $("ficheroFoto");
+const vistaPrevia   = $("vistaPrevia");
+const imagenPrevia  = $("imagenPrevia");
+const datosFoto     = $("datosFoto");
+const botonAnalizar = $("botonAnalizar");
+const estado        = $("estado");
+const cajaError     = $("cajaError");
+
+// ── La clave se recuerda solo mientras dure la pestaña ─────────
+const clave = $("clave");
+clave.value = sessionStorage.getItem("claveVision") || "";
+clave.addEventListener("input", () => {
+  sessionStorage.setItem("claveVision", clave.value.trim());
+});
+
+$("ipArduino").value = sessionStorage.getItem("ipArduino") || "";
+$("ipArduino").addEventListener("input", (e) => {
+  sessionStorage.setItem("ipArduino", e.target.value.trim());
+});
+
+// ───────────────────────────────────────────────────────────────
+// Elegir la foto
+// ───────────────────────────────────────────────────────────────
+zona.addEventListener("click", () => ficheroFoto.click());
+
+zona.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  zona.classList.add("encima");
+});
+zona.addEventListener("dragleave", () => zona.classList.remove("encima"));
+zona.addEventListener("drop", (e) => {
+  e.preventDefault();
+  zona.classList.remove("encima");
+  if (e.dataTransfer.files.length) cargarFoto(e.dataTransfer.files[0]);
+});
+
+ficheroFoto.addEventListener("change", (e) => {
+  if (e.target.files.length) cargarFoto(e.target.files[0]);
+});
+
+function cargarFoto(fichero) {
+  if (!fichero.type.startsWith("image/")) {
+    mostrarError("Eso no es una foto", "Elige un archivo de imagen (jpg, png...).");
+    return;
+  }
+
+  ocultarError();
+  const lector = new FileReader();
+
+  lector.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => encogerFoto(img, fichero.size);
+    img.onerror = () => mostrarError("No he podido abrir la foto",
+                                     "Puede que el archivo esté dañado.");
+    img.src = ev.target.result;
+  };
+
+  lector.readAsDataURL(fichero);
+}
+
+// Reduce la foto a 640 px de ancho, igual que hara la app.
+// Una foto del movil pesa varios MB; asi pesa unos pocos cientos de KB
+// y Vision la reconoce igual de bien.
+function encogerFoto(img, tamanoOriginal) {
+  const escala = Math.min(1, ANCHO_MAXIMO / img.width);
+  const ancho  = Math.round(img.width  * escala);
+  const alto   = Math.round(img.height * escala);
+
+  const lienzo = document.createElement("canvas");
+  lienzo.width  = ancho;
+  lienzo.height = alto;
+  lienzo.getContext("2d").drawImage(img, 0, 0, ancho, alto);
+
+  const urlDatos = lienzo.toDataURL("image/jpeg", CALIDAD_JPEG);
+  base64Foto = urlDatos.split(",")[1];   // quitamos el "data:image/jpeg;base64,"
+
+  imagenPrevia.src = urlDatos;
+  vistaPrevia.style.display = "block";
+
+  const kbAntes   = Math.round(tamanoOriginal / 1024);
+  const kbDespues = Math.round(base64Foto.length * 0.75 / 1024);
+
+  datosFoto.textContent =
+    `${img.width}x${img.height} (${kbAntes} KB)  →  ` +
+    `${ancho}x${alto} (${kbDespues} KB)`;
+
+  botonAnalizar.disabled = false;
+  $("tarjetaResultados").classList.add("oculto");
+  $("tarjetaArduino").classList.add("oculto");
+}
+
+// ───────────────────────────────────────────────────────────────
+// Llamar a Google Vision
+// ───────────────────────────────────────────────────────────────
+botonAnalizar.addEventListener("click", analizar);
+
+async function analizar() {
+  const laClave = clave.value.trim();
+
+  if (!laClave) {
+    mostrarError("Falta la clave", "Escribe tu clave de API en el paso 1.");
+    return;
+  }
+  if (!base64Foto) {
+    mostrarError("Falta la foto", "Elige una foto en el paso 2.");
+    return;
+  }
+
+  ocultarError();
+  botonAnalizar.disabled = true;
+  estado.textContent = "Preguntando a Google...";
+  estado.className = "aviso cargando";
+
+  // Pedimos las DOS cosas en la misma llamada, para poder compararlas
+  // con exactamente la misma foto.
+  const peticion = {
+    requests: [{
+      image: { content: base64Foto },
+      features: [
+        { type: "OBJECT_LOCALIZATION", maxResults: 6 },
+        { type: "LABEL_DETECTION",     maxResults: 6 }
+      ]
+    }]
+  };
+
+  try {
+    const respuesta = await fetch(
+      "https://vision.googleapis.com/v1/images:annotate?key=" + encodeURIComponent(laClave),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(peticion)
+      }
+    );
+
+    const datos = await respuesta.json();
+
+    if (!respuesta.ok) {
+      explicarErrorHttp(respuesta.status, datos);
+      return;
+    }
+
+    const primera = datos.responses && datos.responses[0];
+
+    if (!primera) {
+      mostrarError("Respuesta vacía", "Google no ha devuelto nada. Prueba otra vez.");
+      return;
+    }
+    if (primera.error) {
+      mostrarError("Google ha devuelto un error", primera.error.message || "");
+      return;
+    }
+
+    pintarResultados(
+      primera.labelAnnotations || [],
+      primera.localizedObjectAnnotations || []
+    );
+
+  } catch (e) {
+    mostrarError(
+      "No he podido conectar con Google",
+      "Comprueba que tienes internet. Detalle: " + e.message
+    );
+  } finally {
+    botonAnalizar.disabled = false;
+    estado.textContent = "";
+  }
+}
+
+function explicarErrorHttp(codigo, datos) {
+  const mensaje = (datos && datos.error && datos.error.message) || "";
+
+  const explicaciones = {
+    400: ["La petición está mal formada",
+          "Suele pasar si la foto no se convirtió bien a Base64."],
+    403: ["Problema con la clave",
+          "Puede ser que la clave sea incorrecta, que Cloud Vision API no esté " +
+          "activada en tu proyecto, o que falte activar la facturación."],
+    429: ["Demasiadas peticiones",
+          "Has pasado el límite por minuto. Espera un poco y vuelve a probar."]
+  };
+
+  const [titulo, ayuda] = explicaciones[codigo] || ["Error " + codigo, ""];
+  mostrarError(titulo + " (HTTP " + codigo + ")", ayuda, mensaje);
+}
+
+// ───────────────────────────────────────────────────────────────
+// Pintar la comparativa
+// ───────────────────────────────────────────────────────────────
+function pintarResultados(etiquetas, objetos) {
+  const cajaEtiquetas = $("listaEtiquetas");
+  const cajaObjetos   = $("listaObjetos");
+
+  // --- Columna izquierda: etiquetas ---
+  if (etiquetas.length === 0) {
+    cajaEtiquetas.innerHTML = '<div class="vacio">Ninguna etiqueta.</div>';
+  } else {
+    cajaEtiquetas.innerHTML = etiquetas.map((et, i) => {
+      const esGenerica = GENERICAS.has(et.description.toLowerCase());
+      return fila(et.description, et.score, esGenerica, i === 0);
+    }).join("");
+  }
+
+  // --- Columna derecha: objetos ---
+  if (objetos.length === 0) {
+    cajaObjetos.innerHTML =
+      '<div class="vacio">Ningún objeto reconocido en esta foto.</div>';
+  } else {
+    cajaObjetos.innerHTML = objetos.map((ob, i) =>
+      fila(ob.name, ob.score, false, i === 0)
+    ).join("");
+  }
+
+  // --- Veredicto: que se mandaria al Arduino ---
+  decidirYExplicar(etiquetas, objetos);
+
+  $("tarjetaResultados").classList.remove("oculto");
+}
+
+function fila(nombre, puntuacion, esGenerica, esPrimera) {
+  const clases = ["fila"];
+  if (esGenerica) clases.push("generica");
+  if (esPrimera)  clases.push("elegida");
+
+  return `<div class="${clases.join(" ")}">
+            <span class="nombre">${escapar(nombre)}</span>
+            <span class="puntuacion">${Math.round(puntuacion * 100)}%</span>
+          </div>`;
+}
+
+function decidirYExplicar(etiquetas, objetos) {
+  const caja = $("veredicto");
+  let explicacion;
+
+  if (objetos.length > 0) {
+    nombreElegido = objetos[0].name;
+    explicacion = "Lo ha resuelto <strong>OBJECT_LOCALIZATION</strong>: " +
+                  "ha encontrado un objeto de verdad en la foto.";
+  } else {
+    // Plan B: la primera etiqueta que no sea abstracta
+    const buena = etiquetas.find(e => !GENERICAS.has(e.description.toLowerCase()));
+    if (buena) {
+      nombreElegido = buena.description;
+      explicacion = "No ha encontrado ningún objeto, así que hemos cogido la primera " +
+                    "etiqueta <strong>que no es abstracta</strong>.";
+    } else if (etiquetas.length > 0) {
+      nombreElegido = etiquetas[0].description;
+      explicacion = "⚠️ Todas las etiquetas son abstractas. Con esta foto, la pantalla " +
+                    "mostraría algo poco útil.";
+    } else {
+      nombreElegido = null;
+      explicacion = "Vision no ha reconocido absolutamente nada en esta foto.";
+    }
+  }
+
+  if (!nombreElegido) {
+    caja.innerHTML = `<div>Se mandaría a la pantalla:</div>
+                      <div class="grande">— nada —</div>
+                      <div class="aviso">${explicacion}</div>`;
+    $("tarjetaArduino").classList.add("oculto");
+    return;
+  }
+
+  const enPantalla = prepararParaLCD(nombreElegido);
+  const aviso = enPantalla !== nombreElegido
+    ? `<div class="aviso">En la LCD se verá <code>${escapar(enPantalla)}</code>
+       (solo caben 16 letras y no tiene tildes).</div>`
+    : "";
+
+  caja.innerHTML = `<div>Se mandaría a la pantalla:</div>
+                    <div class="grande">${escapar(nombreElegido)}</div>
+                    <div class="aviso">${explicacion}</div>
+                    ${aviso}`;
+
+  $("tarjetaArduino").classList.remove("oculto");
+  actualizarUrlArduino();
+}
+
+// Hace lo mismo que el sketch del Arduino, para poder verlo aqui.
+function prepararParaLCD(texto) {
+  return texto
+    .normalize("NFD")                     // separa la letra de su tilde
+    .replace(/[\u0300-\u036f]/g, "")       // borra las tildes sueltas
+    .replace(/[^\x20-\x7e]/g, "")         // fuera lo que la LCD no sabe pintar
+    .slice(0, 16);                        // solo caben 16
+}
+
+// ───────────────────────────────────────────────────────────────
+// Enviar al Arduino
+// ───────────────────────────────────────────────────────────────
+$("ipArduino").addEventListener("input", actualizarUrlArduino);
+
+function actualizarUrlArduino() {
+  const ip = $("ipArduino").value.trim();
+  const url = construirUrlArduino();
+  $("urlArduino").innerHTML = (ip && url)
+    ? `Se llamará a: <code>${escapar(url)}</code>`
+    : "";
+}
+
+function construirUrlArduino() {
+  const ip = $("ipArduino").value.trim();
+  if (!ip || !nombreElegido) return null;
+  return `http://${ip}/?texto=${encodeURIComponent(nombreElegido)}`;
+}
+
+$("botonEnviar").addEventListener("click", () => {
+  const url = construirUrlArduino();
+  if (!url) {
+    mostrarError("Falta la IP", "Escribe la dirección que aparece en la pantalla del Arduino.");
+    return;
+  }
+
+  ocultarError();
+
+  // "no-cors": el navegador manda la petición pero no nos deja leer la
+  // respuesta. Nos vale: lo que importa es que el Arduino la reciba.
+  fetch(url, { mode: "no-cors" }).catch(() => {});
+
+  const boton = $("botonEnviar");
+  boton.textContent = "Enviado ✓ mira la LCD";
+  setTimeout(() => { boton.textContent = "Enviar a la LCD"; }, 2500);
+});
+
+// ───────────────────────────────────────────────────────────────
+// Utilidades
+// ───────────────────────────────────────────────────────────────
+function mostrarError(titulo, ayuda, detalle) {
+  cajaError.innerHTML =
+    `<strong>${escapar(titulo)}</strong>${escapar(ayuda || "")}` +
+    (detalle ? `<div class="detalle">${escapar(detalle)}</div>` : "");
+  cajaError.classList.remove("oculto");
+  cajaError.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function ocultarError() {
+  cajaError.classList.add("oculto");
+}
+
+function escapar(texto) {
+  const d = document.createElement("div");
+  d.textContent = texto;
+  return d.innerHTML;
+}
+</script>
+</body>
+</html>

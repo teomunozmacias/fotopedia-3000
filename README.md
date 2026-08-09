@@ -44,9 +44,8 @@ El sistema funciona así:
 - [ ] **Fase 4 – App en MIT App Inventor + servidor HTTP**: cámara + llamada a Vision + petición GET HTTP a Arduino.
 - [ ] **Fase 5 – Integración final**: probarlo todo junto de extremo a extremo.
 
-> 📌 **Pendiente**: las Fases 2 y 3 están hechas, pero **su código todavía no está subido
-> a este repositorio**. Falta subir el sketch de Arduino Cloud y la página de prueba de
-> Google Vision. Los huecos ya están preparados más abajo.
+> 📌 **Pendiente**: falta subir a este repositorio el sketch de la Fase 2
+> (`fase2_arduino_cloud.ino`, el de Arduino Cloud). El hueco está preparado más abajo.
 
 ## Fase 1 — Conexión de la LCD (completada)
 
@@ -114,11 +113,37 @@ Usa la librería `ArduinoIoTCloud` (junto con `thingProperties.h`, generado auto
 
 ### Cómo se probó
 
-> ⚠️ **Pendiente de subir al repositorio.**
-> La página de prueba existe y funciona, pero todavía no está en GitHub.
-> Cuando se suba, irá aquí como `fase3_google_vision_test.html`.
+Página de prueba local: [`fase3_google_vision_test.html`](./fase3_google_vision_test.html)
 
-Página de prueba local: permite subir una foto desde el navegador, la convierte a Base64, y llama a la API con el tipo de análisis `LABEL_DETECTION` (máximo 5 etiquetas).
+Se abre con doble clic en cualquier navegador, sin instalar nada. Arrastras una foto,
+escribes tu clave de API, y te enseña **lado a lado** lo que devuelven las dos formas de
+analizar, con la misma foto y en una sola llamada:
+
+```
+┌──────────────────────────┬──────────────────────────┐
+│ LABEL_DETECTION          │ OBJECT_LOCALIZATION      │
+├──────────────────────────┼──────────────────────────┤
+│ ⭐ Textile      94% ←abst│ ⭐ Teddy bear        91%  │
+│    Material p.  91% ←abst│                          │
+│    Teddy bear   88%      │                          │
+└──────────────────────────┴──────────────────────────┘
+      Se mandaría a la pantalla: Teddy bear
+```
+
+Lo que hace por dentro (los mismos pasos que hará la app del móvil):
+
+1. **Reduce la foto a 640 px** de ancho y te dice cuánto ha adelgazado
+2. La convierte a **Base64**
+3. Llama a Vision pidiendo **las dos features a la vez**
+4. **Marca en amarillo las etiquetas abstractas** para que se vea el problema
+5. Aplica el mismo recorte a 16 letras y quitado de tildes que hace el Arduino
+6. Opcionalmente **envía el resultado a la LCD**, si le das la IP de la placa
+
+> 🔒 La clave de API **no está dentro del archivo**: se escribe cada vez y solo se recuerda
+> mientras la pestaña esté abierta. Por eso esta página sí se puede subir a GitHub.
+
+Con el botón del paso 4 se puede probar la cadena entera (foto → IA → pantalla)
+**sin haber montado todavía la app del móvil**.
 
 Endpoint usado:
 ```
