@@ -116,37 +116,37 @@ Resultado esperado:
 
 ---
 
-## Fase 5.2: App mini — el móvil habla con la placa
+## Fase 5.2: App mini — el móvil habla con la placa ✅ SUPERADA
 
-> 🎯 **Este es el hito más importante de la app.** Comprueba que el móvil llega al
-> Arduino, sin cámara ni IA de por medio. Corresponde a la **Etapa 1** de
+> 🎯 Era **el hito más importante de la app**: comprobar que el móvil llega al Arduino,
+> sin cámara ni IA de por medio. Corresponde a la **Etapa 1** de
 > [fase4_app_inventor_instrucciones.md](./fase4_app_inventor_instrucciones.md).
 >
-> **No sigas a la 5.3 hasta que esto funcione.**
+> Funciona. A partir de aquí, si algo falla, **el problema no es la red**.
 
-### Test 1: Enviar una palabra escrita a mano
+### Test 1: Enviar una palabra escrita a mano ✅
 
-- [ ] El Arduino está encendido y muestra su IP
-- [ ] El móvil está en la **misma red WiFi** (con los datos móviles apagados)
-- [ ] La app está conectada por **AI Companion**
-- [ ] Escribe la IP del Arduino en `TxtIP`
-- [ ] Escribe `Cat` en `TxtPalabra` y pulsa el botón
+- [x] El Arduino está encendido y muestra su IP
+- [x] El móvil está en la **misma red WiFi** (con los datos móviles apagados)
+- [x] La app está conectada por **AI Companion**
+- [x] Escribe la IP del Arduino en `TxtIP`
+- [x] Escribe `Cat` en `TxtPalabra` y pulsa el botón
 
 Resultado esperado:
-- [ ] El móvil muestra `Enviado correctamente`
-- [ ] La LCD muestra `Cat` abajo (y la IP sigue arriba)
-- [ ] El Monitor Serie imprime `--- Cliente conectado ---` y `Texto recibido: Cat`
+- [x] El móvil muestra `Enviado correctamente`
+- [x] La LCD muestra `Cat` abajo (y la IP sigue arriba)
+- [x] El Monitor Serie imprime `--- Cliente conectado ---` y `Texto recibido: Cat`
 
-### Test 2: Una palabra con espacio
+### Test 2: Una palabra con espacio ✅
 
-- [ ] Escribe `Teddy bear` y envía
-- [ ] La LCD muestra **`Teddy bear` entero**, no solo `Teddy`
-- [ ] Si solo ves `Teddy`, falta el bloque `Web1.UriEncode`
+- [x] Escribe `Teddy bear` y envía
+- [x] La LCD muestra **`Teddy bear` entero**, no solo `Teddy`
+- [x] Si solo ves `Teddy`, falta el bloque `Web1.UriEncode`
 
-### Test 3: Una palabra con tilde
+### Test 3: Una palabra con tilde ✅
 
-- [ ] Escribe `camión` y envía
-- [ ] La LCD muestra `camion`, sin símbolos raros
+- [x] Escribe `camión` y envía
+- [x] La LCD muestra `camion`, sin símbolos raros
 
 ### Si no llega nada
 
@@ -490,8 +490,8 @@ timeout funciona.
 - [x] El servidor responde a `curl` desde el ordenador
 - [x] Aguanta una conexión vacía sin colgarse (timeout)
 - [x] Vision reconoce objetos de verdad (no `Font` ni `Material property`)
-- [ ] **La app mini envía una palabra escrita a mano a la LCD** ← siguiente hito
-- [ ] La app hace fotos
+- [x] La app mini envía una palabra escrita a mano a la LCD
+- [ ] **La app hace fotos y las convierte a Base64** ← siguiente hito
 - [ ] La app envía el nombre al Arduino
 - [ ] La LCD muestra el nombre
 - [ ] Funciona con varios objetos distintos

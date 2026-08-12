@@ -348,7 +348,8 @@ Esta fase tiene dos mitades:
 | Mitad | Estado |
 |---|---|
 | **Servidor HTTP en el Arduino** | ✅ Hecho y probado |
-| **App en MIT App Inventor** | ⏳ En construcción |
+| **App, etapa 1**: enviar una palabra a mano | ✅ Hecho y probado |
+| **App, etapa 2**: cámara + IA | ⏳ En construcción |
 
 ### Componentes del Arduino
 
