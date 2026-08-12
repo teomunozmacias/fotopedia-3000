@@ -246,19 +246,30 @@ Si ves barras `/` al principio, ya está bien. Si ves guiones bajos `_`, hay que
 
 ### Cómo arreglarlo
 
-Se deshace el cambio con tres bloques `replace all text`, uno por cada carácter:
+Se deshace el cambio con tres bloques `replace all text`, uno por cada carácter,
+uno detrás de otro sobre la misma variable:
 
 ```
-to ArreglarBase64  (textoWebSafe)
-result  replace all text
-            replace all text
-                replace all text  (get textoWebSafe)  segment "-"  replacement "+"
-            segment "_"  replacement "/"
-        segment "*"  replacement "="
+set global base64Foto to  replace all text (get global base64Foto)
+                              segment      "-"
+                              replacement  "+"
+
+set global base64Foto to  replace all text (get global base64Foto)
+                              segment      "_"
+                              replacement  "/"
+
+set global base64Foto to  replace all text (get global base64Foto)
+                              segment      "*"
+                              replacement  "="
 ```
 
-Se leen **de dentro hacia fuera**: primero cambia los `-`, luego los `_`, y por último
-los `*`. Como pelar una cebolla al revés.
+> 📐 **Cómo leer estos bloques.** El primer hueco va pegado al nombre del bloque y no
+> lleva etiqueta; los otros dos sí (`segment` y `replacement`). Es decir:
+>
+> ```
+> replace all text ( ... )  segment ( ... )  replacement ( ... )
+>                  └─texto            └─qué buscar      └─por qué cambiarlo
+> ```
 
 ## 2.4 Componentes nuevos
 
@@ -300,27 +311,62 @@ do  call Camera1.TakePicture
 
 ```
 when Camera1.AfterPicture (image)
-do  set ImgFoto.Picture to image
+do  set ImgFoto.Picture to  get image
 
     // 1. Encogerla a 640 px usando el Canvas
-    set Canvas1.BackgroundImage to image
-    set global rutaFoto to call Canvas1.SaveAs  fileName "pequena.jpg"
+    set Canvas1.BackgroundImage to  get image
+    set global rutaFoto to  call Canvas1.SaveAs  fileName "pequena.jpg"
 
-    // 2. Convertirla a Base64 (sale en Web Safe)
+    // 2. Quitar el "file://" que pone el Canvas por delante
+    set global rutaFoto to  replace all text (get global rutaFoto)
+                                segment      "file://"
+                                replacement  ""
+
+    // 3. Leer el fichero y convertirlo a Base64 (sale en Web Safe)
     set global base64Foto to
         call KIO4_Base64.FileToStringDirect  fileName (get global rutaFoto)
 
-    // 3. Traducirlo a Base64 normal, que es el que quiere Google
-    set global base64Foto to call ArreglarBase64  textoWebSafe (get global base64Foto)
+    // 4. Traducirlo a Base64 normal (los tres cambios del apartado 2.3)
 
     set LblEstado.Text to "Preguntando a la IA..."
     call AnalizarConVision
 ```
 
-> 🔍 **Comprueba el paso 3 la primera vez.** Pon temporalmente
-> `set LblEstado.Text to segment text (get global base64Foto) start 1 length 10`
-> y mira lo que sale: debe empezar por `/9j/4AAQ`. Si empieza por `_9j_4AAQ`,
-> el bloque `ArreglarBase64` no se está aplicando.
+### ⚠️ El `file://` de delante
+
+`Canvas1.SaveAs` no devuelve una ruta normal, devuelve una **dirección de fichero**:
+
+```
+file:///storage/emulated/0/Android/data/<paquete>/files/pequena.jpg
+└──┬──┘
+   └─ esto sobra: la extensión quiere la ruta pelada
+```
+
+Sin quitarlo, `FileToStringDirect` dice que no encuentra el fichero. Por eso el paso 2.
+
+Para ver qué ruta sale de verdad en tu móvil:
+`set LblEstado.Text to get global rutaFoto`
+
+### 🔍 Comprobación antes de seguir
+
+Pon esto temporalmente al final del bloque:
+
+```
+set LblEstado.Text to  join
+                           "Largo: "
+                           length (get global base64Foto)
+                           "  Empieza: "
+                           segment  text (get global base64Foto)  start 1  length 10
+```
+
+| Qué | Bien | Mal |
+|---|---|---|
+| **Empieza por** | `/9j/4AAQSk` | `_9j_4AAQSk` → faltan los tres cambios |
+| **Largo** | entre 30.000 y 200.000 | más de 1.000.000 → el Canvas no encogió |
+| | | `0` o vacío → no encontró el fichero |
+
+**Por qué siempre `/9j/`**: todas las fotos JPEG del mundo empiezan por los mismos bytes,
+es su "firma". Si tu cadena empieza así, hay un JPEG de verdad bien codificado ahí dentro.
 
 ### Si `FileToStringDirect` no encuentra el fichero
 
@@ -328,15 +374,12 @@ Depende de la versión de Android dónde guarda las cosas App Inventor:
 
 | Android | Dónde acaba la foto | Bloque a usar |
 |---|---|---|
-| 10 o más nuevo | Carpeta privada de la app (ASD) | `FileToStringASD` |
+| 10 o más nuevo | Carpeta privada de la app (ASD) | `FileToStringASD` con solo `"pequena.jpg"` |
 | 9 o más viejo | `/mnt/sdcard/...` | `FileToString` |
 | Cualquiera | La ruta que le des tal cual | `FileToStringDirect` |
 
-Empieza por `FileToStringDirect`, que usa la ruta que devuelve `Canvas1.SaveAs`.
-Si te da error de fichero no encontrado, prueba `FileToStringASD`.
-
-Para ver qué ruta está saliendo de verdad:
-`set LblEstado.Text to get global rutaFoto`
+Empieza por `FileToStringDirect` con la ruta ya sin el `file://`.
+Si sigue sin encontrarlo, prueba `FileToStringASD` pasándole solo `"pequena.jpg"`.
 
 ## 2.7 Llamar a Google Vision
 
