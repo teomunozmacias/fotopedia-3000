@@ -120,7 +120,7 @@ Resultado esperado:
 
 > 🎯 Era **el hito más importante de la app**: comprobar que el móvil llega al Arduino,
 > sin cámara ni IA de por medio. Corresponde a la **Etapa 1** de
-> [fase4_app_inventor_instrucciones.md](./fase4_app_inventor_instrucciones.md).
+> [fase4-app-inventor.md](./fase4-app-inventor.md).
 >
 > Funciona. A partir de aquí, si algo falla, **el problema no es la red**.
 

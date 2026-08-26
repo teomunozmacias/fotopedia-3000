@@ -30,22 +30,41 @@ El sistema funciona así:
 
 | Pieza | Herramienta elegida |
 |---|---|
-| App móvil | MIT App Inventor (sin código) |
+| App móvil | **Android nativo** (Kotlin + Jetpack Compose) — antes MIT App Inventor |
 | Reconocimiento de imagen (IA) | Google Cloud Vision API |
 | Placa | Arduino Uno R4 WiFi |
 | Comunicación app → placa | HTTP (WiFiS3 + WiFiServer, sin Arduino Cloud) |
 | Pantalla | LCD 1602A (sin módulo I2C, 16 pines directos) |
 
+## Cómo está organizado este repositorio
+
+```
+README.md                 ← esta página: el proyecto entero de un vistazo
+doc/                      ← toda la documentación
+arduino/                  ← los sketches de la placa
+android/                  ← la app del móvil (Fase 6)
+```
+
+| Fichero | Qué contiene |
+|---|---|
+| [`doc/fase3-google-vision-test.html`](./doc/fase3-google-vision-test.html) | Página de prueba de Google Vision: se abre con doble clic y compara los dos modos de análisis con la misma foto |
+| [`doc/fase4-app-inventor.md`](./doc/fase4-app-inventor.md) | Cómo se construyó la app de MIT App Inventor (📦 archivada: la sustituye la Fase 6) |
+| [`doc/fase5-integracion-checklist.md`](./doc/fase5-integracion-checklist.md) | Checklist de pruebas de extremo a extremo |
+| [`doc/fase6-app-android.md`](./doc/fase6-app-android.md) | Guía de trabajo de la app Android nativa: entorno, estructura y trampas conocidas |
+| [`arduino/fase1_lcd_test/`](./arduino/fase1_lcd_test/) | Sketch de prueba de la LCD (Fase 1) |
+| [`arduino/fase4_arduino_http_server/`](./arduino/fase4_arduino_http_server/) | Sketch definitivo: servidor HTTP + LCD (Fase 4) |
+
 ## Plan de trabajo
 
 - [x] **Fase 1 – Hardware**: conectar la LCD 1602 al Arduino Uno R4 WiFi y mostrar un mensaje de prueba.
-- [x] **Fase 2 – Arduino Cloud**: crear la "Thing", la variable de texto, y el sketch que sincroniza y actualiza la LCD automáticamente.
+- [x] **Fase 2 – Arduino Cloud**: crear la "Thing" y la variable de texto. *Descartada más adelante* a favor de un servidor HTTP en la placa ([por qué](#-decisión-de-diseño-por-qué-servidor-http-local-en-lugar-de-arduino-cloud)).
 - [x] **Fase 3 – Google Vision API**: crear cuenta/clave y probar que identifica correctamente una foto.
-- [ ] **Fase 4 – App en MIT App Inventor + servidor HTTP**: cámara + llamada a Vision + petición GET HTTP a Arduino.
-- [ ] **Fase 5 – Integración final**: probarlo todo junto de extremo a extremo.
+- [x] **Fase 4 – App en MIT App Inventor + servidor HTTP**: cámara + llamada a Vision + petición GET HTTP a Arduino.
+- [x] **Fase 5 – Integración final**: probarlo todo junto de extremo a extremo.
+- [ ] **Fase 6 – App Android nativa**: rehacer la app del móvil en Kotlin + Jetpack Compose, dentro de este repositorio.
 
-> 📌 **Pendiente**: falta subir a este repositorio el sketch de la Fase 2
-> (`fase2_arduino_cloud.ino`, el de Arduino Cloud). El hueco está preparado más abajo.
+> 🎉 **El proyecto ya funciona de punta a punta.** La Fase 6 no arregla nada roto:
+> cambia la app de App Inventor por una app Android de verdad, para poder crecer.
 
 ## Fase 1 — Conexión de la LCD (completada)
 
@@ -79,9 +98,15 @@ Las dos patas externas del potenciómetro van a 5V y GND (en cualquier orden); l
 
 ### Código de prueba
 
-Ver [`fase1_lcd_test.ino`](./fase1_lcd_test.ino). Usa la librería `LiquidCrystal` (incluida por defecto en el IDE de Arduino) para mostrar el texto "Fotopedia 3000" / "Detec. objetos" en la pantalla y verificar que el cableado funciona.
+Ver [`arduino/fase1_lcd_test/`](./arduino/fase1_lcd_test/fase1_lcd_test.ino). Usa la librería `LiquidCrystal` (incluida por defecto en el IDE de Arduino) para mostrar el texto "Fotopedia 3000" / "Detec. objetos" en la pantalla y verificar que el cableado funciona.
 
-## Fase 2 — Arduino Cloud (documentada, código pendiente)
+## Fase 2 — Arduino Cloud (descartada)
+
+> 📦 **Esta fase quedó descartada.** Se llegó a montar y a funcionar, pero después se
+> cambió Arduino Cloud por un servidor HTTP dentro de la propia placa
+> ([las razones, más abajo](#-decisión-de-diseño-por-qué-servidor-http-local-en-lugar-de-arduino-cloud)).
+> Se conserva aquí documentada porque lo aprendido sigue valiendo, pero **el sketch
+> `fase2_arduino_cloud.ino` no se va a subir**: el sketch bueno es el de la Fase 4.
 
 ### Configuración en Arduino Cloud
 
@@ -89,19 +114,15 @@ Ver [`fase1_lcd_test.ino`](./fase1_lcd_test.ino). Usa la librería `LiquidCrysta
 - Thing creada, con la placa y la red WiFi asociadas
 - Variable de nube: `objetoDetectado`, tipo **String**, permisos **Read & Write**, sincronización **On change**
 
-### Código
+### Cómo era el código
 
-> ⚠️ **Pendiente de subir al repositorio.**
-> El sketch de esta fase existe y funciona, pero todavía no está en GitHub.
-> Cuando se suba, irá aquí como `fase2_arduino_cloud.ino`.
-
-Usa la librería `ArduinoIoTCloud` (junto con `thingProperties.h`, generado automáticamente por Arduino Cloud) para sincronizar la variable, y `LiquidCrystal` para mostrarla en la LCD.
+Usaba la librería `ArduinoIoTCloud` (junto con `thingProperties.h`, generado automáticamente por Arduino Cloud) para sincronizar la variable, y `LiquidCrystal` para mostrarla en la LCD.
 
 **Notas de la implementación:**
 - La escritura en la LCD no se hace directamente dentro de `onObjetoDetectadoChange()`, sino que esa función solo activa una bandera (`hayActualizacionPendiente`); la escritura real ocurre en el `loop()`, después de `ArduinoCloud.update()`. Esto evita conflictos de tiempo con la actividad del WiFi.
 - Se usa `lcd.begin(16, 2)` en vez de `lcd.clear()` para refrescar la pantalla: `begin()` reenvía toda la configuración interna de la LCD, no solo borra el contenido, lo que evita caracteres corruptos causados por interferencia del WiFi sobre los cables de datos.
 
-## Fase 3 — Google Cloud Vision API (documentada, código pendiente)
+## Fase 3 — Google Cloud Vision API (completada)
 
 ### Configuración en Google Cloud
 
@@ -113,7 +134,7 @@ Usa la librería `ArduinoIoTCloud` (junto con `thingProperties.h`, generado auto
 
 ### Cómo se probó
 
-Página de prueba local: [`fase3_google_vision_test.html`](./fase3_google_vision_test.html)
+Página de prueba local: [`doc/fase3-google-vision-test.html`](./doc/fase3-google-vision-test.html)
 
 Se abre con doble clic en cualquier navegador, sin instalar nada. Arrastras una foto,
 escribes tu clave de API, y te enseña **lado a lado** lo que devuelven las dos formas de
@@ -341,15 +362,21 @@ La mayoría de módulos 1602A que se venden sueltos son **A00**, y por eso quita
 
 ---
 
-## Fase 4 — App en MIT App Inventor + Servidor HTTP (en desarrollo)
+## Fase 4 — App en MIT App Inventor + Servidor HTTP (completada)
 
-Esta fase tiene dos mitades:
+Esta fase tuvo dos mitades, y las dos funcionaron:
 
 | Mitad | Estado |
 |---|---|
-| **Servidor HTTP en el Arduino** | ✅ Hecho y probado |
+| **Servidor HTTP en el Arduino** | ✅ Hecho y probado — **sigue siendo el sketch definitivo** |
 | **App, etapa 1**: enviar una palabra a mano | ✅ Hecho y probado |
-| **App, etapa 2**: cámara + IA | ⏳ En construcción |
+| **App, etapa 2**: cámara + IA | ✅ Hecho y probado |
+
+> 📦 **La app de App Inventor queda archivada.** Cumplió su función —llegar rápido a algo
+> que funciona— y a partir de la [Fase 6](#fase-6--app-android-nativa-en-desarrollo) se
+> sustituye por una app Android nativa. Todo lo de esta sección sobre **el Arduino** sigue
+> vigente: la placa no cambia. Los pasos de la app se conservan en
+> [`doc/fase4-app-inventor.md`](./doc/fase4-app-inventor.md) como referencia.
 
 ### Componentes del Arduino
 
@@ -364,7 +391,7 @@ El Arduino corre un servidor web local que:
 7. **Escribe el texto en la línea de abajo** de la LCD
 8. **Responde `OK`** a la app
 
-**Archivo**: Ver [`fase4_arduino_http_server.ino`](./fase4_arduino_http_server.ino)
+**Archivo**: Ver [`arduino/fase4_arduino_http_server/`](./arduino/fase4_arduino_http_server/fase4_arduino_http_server.ino)
 
 **Configuración necesaria en el sketch**:
 ```cpp
@@ -418,9 +445,10 @@ el número de habitación. Ese reparto de direcciones se llama **DHCP** y tarda 
 
 El sketch comprueba cada 5 segundos si sigue conectado. Si se ha caído, lo intenta de nuevo solo y muestra `Recuperando WiFi` en pantalla. No hay que reiniciar nada a mano.
 
-### Aplicación en MIT App Inventor
+### Aplicación en MIT App Inventor (archivada)
 
-La app hace esto:
+La app hacía esto — y **estos siete pasos son exactamente los que repite la app Android de
+la Fase 6**, porque el flujo del proyecto no cambia, solo la herramienta:
 
 1. **Cámara**: permite capturar una foto
 2. **Reducir la imagen** a ~640 px de ancho, para que se envíe rápido
@@ -435,25 +463,125 @@ La app hace esto:
 6. **Enviar al Arduino**: `GET http://<IP-Arduino>/?texto=<nombre>`
 7. **Mostrar confirmación**: "Enviado a Arduino"
 
-**Archivo**: Ver [`fase4_app_inventor_instrucciones.md`](./fase4_app_inventor_instrucciones.md)
+**Archivo**: Ver [`doc/fase4-app-inventor.md`](./doc/fase4-app-inventor.md)
 
 > 📌 Las etiquetas de Google Vision vienen **en inglés** (`Cat`, `Chair`, `Bottle`).
 > En este proyecto las dejamos así a propósito: se entienden bien y no hace falta traducirlas.
 
 ---
 
-## Fase 5 — Integración y pruebas (en desarrollo)
+## Fase 5 — Integración y pruebas (completada)
 
 Checklist completo del flujo:
 
-- [ ] Arduino arranca y muestra la IP en la LCD
-- [ ] App y placa están en la misma red WiFi
-- [ ] Tomar una foto con la app
-- [ ] Google Vision identifica el objeto (se ve en la app)
-- [ ] El nombre aparece en la LCD del Arduino
-- [ ] Probar con distintos objetos (animales, muebles, plantas…)
-- [ ] Medir el tiempo total: foto → texto en pantalla (**típicamente 3–8 segundos**)
-- [ ] Casos límite: texto largo (se corta a 16), acentos (se quitan), Vision sin resultado
+- [x] Arduino arranca y muestra la IP en la LCD
+- [x] App y placa están en la misma red WiFi
+- [x] Tomar una foto con la app
+- [x] Google Vision identifica el objeto (se ve en la app)
+- [x] El nombre aparece en la LCD del Arduino
+- [x] Probar con distintos objetos (animales, muebles, plantas…)
+- [x] Medir el tiempo total: foto → texto en pantalla (**típicamente 3–8 segundos**)
+- [x] Casos límite: texto largo (se corta a 16), acentos (se quitan), Vision sin resultado
 - [ ] Si `OBJECT_LOCALIZATION` se queda en blanco a menudo, pasar a la Opción C
 
-**Archivo**: Ver [`fase5_integracion_checklist.md`](./fase5_integracion_checklist.md)
+**Archivo**: Ver [`doc/fase5-integracion-checklist.md`](./doc/fase5-integracion-checklist.md)
+
+---
+
+## Fase 6 — App Android nativa (en desarrollo)
+
+Aquí el proyecto **ya funciona entero**. Esta fase no arregla nada roto: cambia la app del
+móvil de MIT App Inventor a una **app Android de verdad**, escrita en Kotlin, que vive
+dentro de este repositorio.
+
+### Por qué dejamos App Inventor
+
+App Inventor fue la decisión correcta para empezar: sin código, sin instalar nada, y en una
+tarde el móvil ya hablaba con la placa. Pero para llegar hasta el final hubo que sortear
+cuatro cosas, y todas están documentadas como "el detalle que te ahorrará una tarde entera":
+
+| Con lo que nos peleamos | Por qué era un tope |
+|---|---|
+| **Base64** | App Inventor no sabe hacerlo. Hay que instalar la extensión `KIO4_Base64`… que además devuelve Base64 *Web Safe* y hay que traducir carácter a carácter |
+| **Reducir la foto** | No hay forma directa: se hace con el truco de pintar la imagen en un `Canvas` invisible y guardarla |
+| **El prefijo `file://`** | La ruta que da la cámara no le sirve al lector de ficheros, y hay que quitárselo a mano |
+| **El proyecto no es un fichero** | Vive dentro de la web de MIT. No hay `git`, no hay historial, no se puede revisar un cambio, y no cabe en este repositorio |
+
+### Qué se gana
+
+| Antes (App Inventor) | Ahora (Android nativo) |
+|---|---|
+| Extensión `KIO4_Base64` + traducir Web Safe | `android.util.Base64` viene en el sistema |
+| Truco del `Canvas` invisible | `BitmapFactory` redimensiona de verdad |
+| Quitar `file://` a mano | La cámara devuelve un `Uri` que se lee directamente |
+| Bloques en una web | Código en este repo, con historial y revisable |
+| — | Se puede escribir con Claude Code |
+
+### El stack
+
+| Pieza | Elección |
+|---|---|
+| Lenguaje | Kotlin |
+| Interfaz | Jetpack Compose |
+| Cámara | CameraX |
+| Peticiones HTTP | OkHttp |
+| Compilación | Gradle (Kotlin DSL) + wrapper |
+| Versión mínima de Android | API 26 (Android 8) |
+
+### Cómo se trabaja: VS Code, sin Android Studio
+
+No hace falta Android Studio. Con el **JDK**, las **command-line tools** del SDK de Android
+y `adb`, todo se hace desde la terminal de VS Code:
+
+```bash
+cd android
+./gradlew assembleDebug                                  # compilar
+adb install -r app/build/outputs/apk/debug/app-debug.apk  # instalar en el móvil
+adb logcat -s Fotopedia                                   # ver los mensajes de la app
+```
+
+> 💡 Android Studio sigue valiendo si en algún momento apetece el *preview* de Compose o el
+> inspector de layouts — y también tiene plugin de Claude Code. Pero no es obligatorio:
+> el proyecto compila igual desde la línea de comandos.
+
+### Qué **no** cambia
+
+Esto es importante: la Fase 6 sustituye **solo el móvil**.
+
+- El sketch del Arduino se queda **tal cual está**.
+- El endpoint sigue siendo `GET http://<IP>/?texto=<nombre>`.
+- Se sigue usando `OBJECT_LOCALIZATION`.
+- El recorte a 16 caracteres y el quitado de tildes siguen ocurriendo **en la placa**.
+
+Es decir: la app nueva se prueba contra el mismo Arduino, sin tocarlo. Y si algo falla, ya
+sabemos que el problema está en el móvil.
+
+### Arquitectura
+
+```
+[App Android (Kotlin)]              [Nube]              [Arduino Uno R4 WiFi]
+   📷 CameraX saca la foto
+   → BitmapFactory la reduce a 640 px
+   → android.util.Base64 la codifica
+   → OkHttp: POST a Vision (OBJECT_LOCALIZATION)
+   ← localizedObjectAnnotations[0].name → "Cat"
+   → OkHttp: GET http://<ip-arduino>/?texto=Cat
+                                            [Servidor WiFi local — SIN CAMBIOS]
+                                            → parsea URL
+                                            → decodifica parámetro
+                                            → quita tildes y trunca a 16
+                                            → muestra en LCD
+```
+
+### Por dónde se empieza
+
+El plan detallado —qué instalar, cómo queda el proyecto y las trampas conocidas (ojo con
+el **cleartext HTTP**, que en Android 9+ bloquea las peticiones `http://` sin avisar)— está
+en [`doc/fase6-app-android.md`](./doc/fase6-app-android.md).
+
+El trabajo está desglosado en issues:
+👉 **[Issues de la Fase 6](https://github.com/teomunozmacias/fotopedia-3000/issues?q=is%3Aissue+label%3Afase-6)**
+
+Igual que en la Fase 4, se hace **en dos etapas**: primero una pantalla mínima que manda
+una palabra escrita a mano (para comprobar que el móvil llega a la placa), y solo después la
+cámara y la IA.

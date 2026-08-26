@@ -1,0 +1,20 @@
+# Claves y rutas locales — NUNCA se suben (este repositorio es público)
+local.properties
+android/local.properties
+
+# Compilación de Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/.idea/
+android/.kotlin/
+
+# Artefactos y firmas
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

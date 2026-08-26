@@ -1,5 +1,14 @@
 # Fase 4 — La app del móvil (MIT App Inventor)
 
+> 📦 **Documento archivado.** Esta app se construyó, funcionó y sirvió para cerrar la
+> Fase 5 de punta a punta. A partir de la **Fase 6** la sustituye una app Android nativa
+> en Kotlin: ver [`fase6-app-android.md`](./fase6-app-android.md).
+>
+> Se conserva porque explica el flujo del proyecto paso a paso (los siete pasos son los
+> mismos en la app nueva) y porque las trampas que documenta —Base64 Web Safe, el truco del
+> `Canvas`, el prefijo `file://`— son justamente las razones por las que se cambió de
+> herramienta.
+
 Vamos a construir la app en **dos etapas**, no de golpe.
 
 | Etapa | Qué hace | Cuánto cuesta |
