@@ -40,6 +40,7 @@ El sistema funciona así:
 
 ```
 README.md                 ← esta página: el proyecto entero de un vistazo
+CLAUDE.md                 ← normas de trabajo en el repositorio (para Claude Code)
 doc/                      ← toda la documentación
 arduino/                  ← los sketches de la placa
 android/                  ← la app del móvil (Fase 6)
