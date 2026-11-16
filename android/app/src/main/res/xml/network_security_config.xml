@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Por que existe este fichero
+    ===========================
+    Desde Android 9, el sistema bloquea las peticiones http:// (sin cifrar) y solo
+    deja pasar las https://. Nuestra peticion a la placa es http://192.168.1.50/?texto=Cat,
+    porque el Arduino no puede hablar https://: cifrar es demasiado para esa placa.
+
+    Sin este permiso la peticion ni siquiera sale del movil, y el error que se ve es
+    uno generico de red, como si la placa estuviera apagada.
+
+    Por que se permite en general y no solo a la red de casa
+    ========================================================
+    Lo ideal seria permitirlo solo a 192.168.1.x, pero Android no deja escribir un
+    rango de direcciones aqui: <domain>192.168.1.0</domain> autoriza esa direccion
+    exacta y ninguna mas. Y la IP de la placa cambia (se la da el router), asi que
+    tampoco se puede escribir fija.
+
+    La llamada a Google no pierde seguridad: su direccion empieza por https:// y
+    se sigue cifrando igual. Este permiso solo afecta a las direcciones http://,
+    y la unica que usa la app es la de la placa.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

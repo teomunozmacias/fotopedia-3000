@@ -54,6 +54,8 @@ android/                  ← la app del móvil (Fase 6)
 | [`doc/fase6-app-android.md`](./doc/fase6-app-android.md) | Guía de trabajo de la app Android nativa: entorno, estructura y trampas conocidas |
 | [`arduino/fase1_lcd_test/`](./arduino/fase1_lcd_test/) | Sketch de prueba de la LCD (Fase 1) |
 | [`arduino/fase4_arduino_http_server/`](./arduino/fase4_arduino_http_server/) | Sketch definitivo: servidor HTTP + LCD (Fase 4) |
+| [`android/`](./android/) | Proyecto de la app Android (Fase 6). De momento compila y enseña una pantalla de arranque |
+| [`android/local.properties.example`](./android/local.properties.example) | Plantilla de las claves locales: se copia como `local.properties` y se rellena |
 
 ## Plan de trabajo
 
@@ -573,6 +575,25 @@ sabemos que el problema está en el móvil.
                                             → quita tildes y trunca a 16
                                             → muestra en LCD
 ```
+
+### Por dónde va
+
+| Paso | Estado |
+|---|---|
+| Entorno: JDK 17, SDK de Android y `adb` | ✅ Instalado. Falta comprobar que `adb devices` ve el móvil |
+| Proyecto `android/` que compila (`./gradlew assembleDebug`) | ✅ Compila. Falta instalarlo en el móvil y verlo abrir |
+| Claves en `local.properties` → `BuildConfig` | ✅ Hecho: sin `VISION_API_KEY` la compilación se para y avisa |
+| Permiso para `http://` hacia la placa | ✅ Escrito. Falta probarlo contra el Arduino real (será en la etapa 1) |
+| Etapa 1: enviar una palabra a la LCD | ⏳ Pendiente |
+| Etapa 2: cámara + Google Vision | ⏳ Pendiente |
+
+Para compilar en un ordenador nuevo hay que copiar `android/local.properties.example` como
+`android/local.properties` y escribir ahí la clave de la Vision API.
+
+> 💡 Dos errores reales de este arranque, contados en la guía: las librerías actuales
+> obligan a **compilar contra la API 37** (el plan decía 35), y el permiso de `http://`
+> **no se puede limitar a la red de casa** como estaba previsto, porque Android no admite
+> rangos de direcciones en ese fichero.
 
 ### Por dónde se empieza
 

@@ -36,7 +36,19 @@ No hace falta Android Studio. Con estas tres cosas se compila y se instala desde
 |---|---|---|
 | **JDK** | 17 (Temurin) | `winget install EclipseAdoptium.Temurin.17.JDK` |
 | **Android SDK command-line tools** | la última | Descargar de [developer.android.com/studio#command-line-tools-only](https://developer.android.com/studio#command-line-tools-only) y descomprimir en `%LOCALAPPDATA%\Android\Sdk\cmdline-tools\latest` |
-| **Plataforma + build-tools + adb** | API 35 | `sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"` |
+| **Plataforma + build-tools + adb** | API 36 y 37 | `sdkmanager "platform-tools" "platforms;android-36" "platforms;android-37.0" "build-tools;36.0.0"` |
+
+Las licencias del SDK se aceptan una vez con `sdkmanager --licenses`.
+
+> 📌 **Versiones comprobadas en noviembre de 2026**: JDK 17.0.21, command-line tools
+> 15859902, platform-tools 37.0.1. `sdkmanager` sigue funcionando, pero ya avisa de que
+> está obsoleto y de que su sustituto es `android sdk`.
+
+> 💡 Este fue un error real que tuvimos: el plan decía API 35, instalamos la 36 por ser la
+> estable… y la primera compilación falló con once avisos iguales: *"requires libraries and
+> applications that depend on it to compile against version 37 or later"*. Las librerías
+> actuales (Compose, `core-ktx`) exigen **compilar** contra la 37. Se arregló instalando
+> `platforms;android-37.0` y poniendo `compileSdk = 37`, sin tocar `targetSdk`.
 
 Variables de entorno (una vez, en el usuario de Windows):
 
@@ -73,20 +85,38 @@ adb devices            # tiene que aparecer tu móvil como "device", no "unautho
 android/
   settings.gradle.kts        ← qué módulos hay (solo :app)
   build.gradle.kts           ← plugins y versiones comunes
+  gradle.properties          ← ajustes de Gradle (memoria, AndroidX)
   gradle/libs.versions.toml  ← versión de cada librería, en un solo sitio
+  gradle/wrapper/            ← qué versión de Gradle usa el proyecto
   gradlew / gradlew.bat      ← el "wrapper": trae el Gradle correcto solo
   local.properties           ← 🔒 rutas y claves de esta máquina — NO se sube
+  local.properties.example   ← plantilla del anterior, con valores de ejemplo — sí se sube
   app/
     build.gradle.kts         ← config de la app: minSdk, dependencias, BuildConfig
     src/main/
       AndroidManifest.xml    ← permisos (INTERNET, CAMERA) y config de red
+      res/values/strings.xml ← el nombre de la app
       res/xml/network_security_config.xml   ← ⚠️ ver apartado 5
       java/es/fotopedia/app/
         MainActivity.kt      ← la pantalla
-        ArduinoClient.kt     ← GET http://<ip>/?texto=...
-        VisionClient.kt      ← POST a Google Vision
-        ImagenUtils.kt       ← reducir a 640 px + Base64
+        ArduinoClient.kt     ← GET http://<ip>/?texto=...      (pendiente)
+        VisionClient.kt      ← POST a Google Vision            (pendiente)
+        ImagenUtils.kt       ← reducir a 640 px + Base64       (pendiente)
 ```
+
+Versiones con las que compila hoy (están en `gradle/libs.versions.toml`):
+
+| Pieza | Versión |
+|---|---|
+| Gradle (wrapper) | 9.9.1 |
+| Plugin de Android (AGP) | 9.5.1 |
+| Kotlin / plugin de Compose | 2.4.21 |
+| Compose BOM | 2026.09.00 |
+| `compileSdk` / `targetSdk` / `minSdk` | 37 / 36 / 26 |
+
+> 📌 Desde la versión 9 del plugin de Android, **Kotlin ya viene dentro**: por eso en
+> `build.gradle.kts` no aparece el plugin `kotlin-android` que sale en casi todos los
+> tutoriales. El de Compose sí hay que pedirlo aparte.
 
 Órdenes del día a día:
 
@@ -122,6 +152,15 @@ buildConfigField("String", "VISION_API_KEY", "\"${props.getProperty("VISION_API_
 
 Y desde el código se usa como `BuildConfig.VISION_API_KEY`.
 
+Para empezar en un ordenador nuevo: copiar `android/local.properties.example` como
+`android/local.properties` y rellenarlo. Si falta la clave, **la compilación se para** y lo
+dice (`Falta VISION_API_KEY en android/local.properties…`), en vez de generar un APK que se
+instala bien y luego no reconoce nada.
+
+La clave sale de la [consola de Google Cloud](https://console.cloud.google.com) →
+*APIs y servicios* → *Credenciales*. Al crearla hay que **restringirla a Cloud Vision API**
+(*Restricciones de API*), como ya se hizo en la Fase 3.
+
 > 🔒 Esto **no** hace la clave secreta para quien tenga el APK (se puede sacar de dentro).
 > Lo que evita es publicarla en un repositorio público, que es el error de verdad: una clave
 > en GitHub la encuentran los robots en minutos. Por eso además la clave está **restringida
@@ -142,14 +181,12 @@ Y lo peor: **no falla de forma clara**. La petición simplemente no sale, y lo q
 excepción genérica de red, como si la placa no estuviera. Te pones a mirar el WiFi, la IP y
 el sketch… y el problema está en el móvil.
 
-La solución es declarar que **sí** permitimos HTTP sin cifrar, pero **solo a la red local**:
+La solución es declarar que **sí** permitimos HTTP sin cifrar:
 
 ```xml
 <!-- app/src/main/res/xml/network_security_config.xml -->
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">192.168.1.0</domain>
-    </domain-config>
+    <base-config cleartextTrafficPermitted="true" />
 </network-security-config>
 ```
 
@@ -160,7 +197,18 @@ Y engancharlo en el manifiesto:
 ```
 
 > 💡 El Arduino no puede hablar `https://`: cifrar es demasiado para esa placa. Por eso la
-> excepción es correcta aquí — y por eso se limita a la red de casa, no a todo Internet.
+> excepción es correcta aquí.
+
+> ⚠️ **El plan original no habría funcionado.** La primera idea era permitirlo *solo a la
+> red de casa*, escribiendo `<domain includeSubdomains="true">192.168.1.0</domain>`. Pero
+> ese fichero **no entiende rangos de direcciones**: eso autoriza la dirección
+> `192.168.1.0` exacta y ninguna más, así que la petición a `192.168.1.50` habría seguido
+> bloqueada. Y como la IP de la placa la reparte el router y cambia, tampoco se puede
+> escribir fija. Por eso se permite en general.
+>
+> No se pierde seguridad con Google: su dirección empieza por `https://` y se sigue
+> cifrando igual. El permiso solo afecta a direcciones `http://`, y la única que usa la app
+> es la de la placa.
 
 ## 6. El flujo por dentro
 
@@ -191,9 +239,10 @@ nueva con la vieja.
 
 ### 6.1 — Entorno
 
-- [ ] `java -version` dice 17
+- [x] `java -version` dice 17
 - [ ] `adb devices` ve el móvil como `device`
-- [ ] `./gradlew assembleDebug` compila sin errores
+- [x] `./gradlew assembleDebug` compila sin errores
+- [x] Sin `VISION_API_KEY`, la compilación se para y dice qué falta
 - [ ] El APK se instala y la app abre sin cerrarse
 
 ### 6.2 — Etapa 1: el móvil habla con la placa

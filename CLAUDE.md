@@ -39,7 +39,7 @@ README.md      La portada: el proyecto entero, fase por fase
 CLAUDE.md      Esto
 doc/           Documentacion: guias de fase y la pagina de prueba de Vision
 arduino/       Sketches, cada uno en su carpeta con el mismo nombre (lo exige el IDE)
-android/       App del movil, Kotlin + Jetpack Compose (Fase 6, aun no creada)
+android/       App del movil, Kotlin + Jetpack Compose (Fase 6, en desarrollo)
 ```
 
 - `doc/` en kebab-case (`fase6-app-android.md`).
@@ -119,7 +119,8 @@ adb logcat -s Fotopedia
 Tres cosas que fallan en silencio si se olvidan:
 
 1. **Cleartext HTTP**: Android 9+ bloquea `http://` y el error parece "la placa no responde".
-   Hace falta `network_security_config.xml` limitado a la red local.
+   Hace falta `network_security_config.xml`. Va con `base-config` y no limitado a la red
+   local: ese fichero no admite rangos de IP y la de la placa cambia.
 2. **`Base64.NO_WRAP`**: sin él se cuelan saltos de línea cada 76 caracteres y el JSON que
    va a Google sale roto.
 3. **`URLEncoder.encode(texto, "UTF-8")`**: sin él, `Coffee cup` llega a la placa como

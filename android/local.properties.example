@@ -1,0 +1,13 @@
+# Copia este fichero como "local.properties" (en esta misma carpeta) y rellenalo.
+# local.properties NO se sube a GitHub; este ejemplo si.
+
+# Donde esta el SDK de Android en este ordenador (cambia "tu-usuario").
+sdk.dir=C\:\\Users\\tu-usuario\\AppData\\Local\\Android\\Sdk
+
+# Tu clave de la Vision API (consola de Google Cloud > Credenciales).
+# Sin ella, la compilacion se para y avisa.
+VISION_API_KEY=AIzaSy_PON_AQUI_TU_CLAVE
+
+# La IP que ensena la placa en la linea de arriba de la LCD.
+# Es solo el valor inicial: se podra cambiar desde la app sin recompilar.
+ARDUINO_IP=192.168.1.50
